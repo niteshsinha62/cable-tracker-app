@@ -81,9 +81,7 @@ const loginView = document.getElementById('login-view'),
       endDateInput = document.getElementById('end-date'),
       exportBtn = document.getElementById('export-btn');
 
-// --- State Variables ---
-let googleMap, currentInfoWindow = null, markers = []; // Google Maps variables
-let allJobs = [], currentFilteredJobs = [], currentStream = null, filesToUpload = [],
+let map, markers = [], allJobs = [], currentFilteredJobs = [], currentStream = null, filesToUpload = [],
     selectedLocation = null, currentSort = { key: 'timestamp', dir: 'desc' },
     modalImages = [], currentModalImageIndex = 0, isInitialLoad = true;
 
@@ -113,9 +111,9 @@ const translations = {
         attachments: "अटैचमेंट्स", uploadPhoto: "फोटो अपलोड करें", takePhoto: "फोटो लें",
         capturePhoto: "फोटो खींचे", cancel: "रद्द करें", submit: "सबमिट करें",
         jobList: "जॉब सूची", allAreas: "सभी क्षेत्र", searchPlaceholder: "पता, कर्मचारी, नोट्स द्वारा खोजें...",
-        navigate: "네비게이션", shareLocation: "위치 공유", sharePhoto: "사진 공유",
-        copied: "복사!", noAddress: "주소 없음", noMatchingJobs: "일치하는 작업이 없습니다.",
-        successTitle: "성공!", successMessage: "작업이 성공적으로 기록되었습니다.", newEntry: "새 항목"
+        navigate: "नेविगेट करें", shareLocation: "स्थान साझा करें", sharePhoto: "फोटो साझा करें",
+        copied: "कॉपी किया गया!", noAddress: "कोई पता नहीं", noMatchingJobs: "कोई मेल खाने वाली जॉब नहीं मिली।",
+        successTitle: "सफलता!", successMessage: "आपका काम सफलतापूर्वक लॉग हो गया है।", newEntry: "नई एंट्री"
     }
 };
 
@@ -155,6 +153,7 @@ onAuthStateChanged(auth, user => {
         loginView.classList.remove('hidden');
         staffView.classList.add('hidden');
         adminContainer.classList.add('hidden');
+        if (map) map.remove();
     }
 });
 
@@ -348,18 +347,6 @@ function setSubmitButtonLoading(isLoading) {
 }
 
 // --- Admin View Logic ---
-
-// [FIXED] This function is now attached to the window object, making it globally accessible
-window.initMap = () => {
-    if (document.getElementById("map")) {
-        const mapOptions = {
-            center: { lat: 20.5937, lng: 78.9629 }, // Center of India
-            zoom: 5,
-        };
-        googleMap = new google.maps.Map(document.getElementById("map"), mapOptions);
-    }
-}
-
 function initAdminView() {
     listenForJobs();
     searchInput.addEventListener('input', applyFiltersAndSort);
@@ -385,12 +372,12 @@ function initAdminView() {
     viewMapBtn.addEventListener('click', () => {
         dashboardView.classList.add('hidden');
         mapView.classList.remove('hidden');
-        if (!googleMap && window.google) {
-            // If map wasn't initialized for some reason, try again.
-            window.initMap();
+        if (!map) {
+            map = L.map('map').setView([20.5937, 78.9629], 5);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         }
         populateMapFilterDropdowns();
-        renderMapMarkers(allJobs.slice(0, 10)); // Show recent jobs on first load
+        renderMapMarkers(allJobs.slice(0, 10));
     });
 
     viewAnalyticsBtn.addEventListener('click', () => {
@@ -400,8 +387,7 @@ function initAdminView() {
     });
 
     backToDashboardBtn.addEventListener('click', () => {
-        mapView.classList.add('hidden');
-        dashboardView.classList.remove('hidden');
+        window.location.search = '';
     });
     backToDashboardBtn2.addEventListener('click', () => {
         analyticsView.classList.add('hidden');
@@ -443,7 +429,11 @@ function initAdminView() {
             dashboardView.classList.add('hidden');
             analyticsView.classList.add('hidden');
             mapView.classList.remove('hidden');
-            if (!googleMap && window.google) window.initMap();
+
+            if (!map) {
+                map = L.map('map').setView([20.5937, 78.9629], 5);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            }
             renderMapMarkers(filteredJobs);
         }
     });
@@ -560,15 +550,12 @@ function listenForJobs() {
                 if (jobToShow) {
                     dashboardView.classList.add('hidden');
                     mapView.classList.remove('hidden');
-                    // Wait for map to be ready
-                    const checkMapReady = setInterval(() => {
-                        if (googleMap) {
-                            clearInterval(checkMapReady);
-                            renderMapMarkers([jobToShow]);
-                            googleMap.setCenter(jobToShow.location);
-                            googleMap.setZoom(16);
-                        }
-                    }, 100);
+                    if (!map) {
+                        map = L.map('map').setView([jobToShow.location.lat, jobToShow.location.lng], 16);
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                    }
+                    renderMapMarkers([jobToShow]);
+                    map.setView([jobToShow.location.lat, jobToShow.location.lng], 16);
                 }
             }
         }
@@ -625,101 +612,106 @@ function showModalImage(index) {
 }
 
 function renderMapMarkers(jobs) {
-    if (!googleMap) return;
-
-    // Clear existing markers
-    markers.forEach(marker => marker.setMap(null));
+    if (!map) return;
+    markers.forEach(marker => map.removeLayer(marker));
     markers = [];
-    if (currentInfoWindow) currentInfoWindow.close();
-
     const lang = localStorage.getItem('language') || 'en';
     const isFiltered = mapAreaFilter.value !== 'all' || mapSearchInput.value !== '';
 
     mapListInfo.textContent = isFiltered ? `Showing ${jobs.length} results.` : 'Showing top 10 recent jobs.';
 
     jobList.innerHTML = '';
-    if (jobs.length === 0) {
-        jobList.innerHTML = `<p class="text-center text-gray-500 p-4">${translations[lang].noMatchingJobs}</p>`;
-        return;
-    }
-
-    const bounds = new google.maps.LatLngBounds();
-
     jobs.forEach(job => {
-        // --- Job List Card ---
         const card = document.createElement('div');
         card.className = 'job-card bg-gray-50 p-3 rounded-lg border border-gray-200 hover:bg-blue-50 hover:border-blue-300 cursor-pointer';
         card.innerHTML = `
             <div class="flex justify-between items-start">
-                <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${getCategoryColor(job.category).bg} ${getCategoryColor(job.category).text}">${translations[lang][job.category.toLowerCase()] || job.category}</span>
+                <span class="text-xs font-semibold px-2 py-0-5 rounded-full ${getCategoryColor(job.category).bg} ${getCategoryColor(job.category).text}">${translations[lang][job.category.toLowerCase()] || job.category}</span>
             </div>
             <div>
                 <p class="font-bold text-gray-800 mt-2">${job.customerAddress || translations[lang].noAddress}</p>
                 <p class="text-sm text-gray-500 mt-1"><i class="fa-solid fa-user mr-1"></i> ${job.staffName}</p>
                 <p class="text-sm text-gray-500"><i class="fa-solid fa-calendar-days mr-1"></i> ${new Date(job.timestamp.seconds * 1000).toLocaleDateString()}</p>
             </div>`;
-        
-        const marker = new google.maps.Marker({
-            position: job.location,
-            map: googleMap,
-            title: job.customerAddress || job.category,
-            icon: {
-                path: google.maps.SymbolPath.CIRCLE,
-                scale: 8,
-                fillColor: getCategoryColor(job.category).marker,
-                fillOpacity: 1,
-                strokeColor: 'white',
-                strokeWeight: 2,
-            }
-        });
-
         card.addEventListener('click', () => {
-            googleMap.panTo(job.location);
-            googleMap.setZoom(16);
-            new google.maps.event.trigger(marker, 'click');
+            map.setView([job.location.lat, job.location.lng], 16);
+            const marker = markers.find(m => m.jobId === job.id);
+            if (marker) marker.openPopup();
         });
         jobList.appendChild(card);
 
-        // --- Info Window Content ---
+        const icon = L.divIcon({ html: `<i class="fa-solid fa-location-dot fa-2x" style="color: ${getCategoryColor(job.category).marker};"></i>`, className: 'dummy' });
+        const marker = L.marker([job.location.lat, job.location.lng], { icon }).addTo(map);
+        marker.jobId = job.id;
+        
         const photoGallery = (job.photoURLs && job.photoURLs.length > 0) 
-            ? `<div class="flex gap-2 overflow-x-auto mt-2 pb-2">${job.photoURLs.map(url => `<a href="${url}" target="_blank"><img src="${url}" class="h-20 w-20 object-cover rounded-md"></a>`).join('')}</div>`
+            ? `<div class="flex gap-2 overflow-x-auto mt-2">${job.photoURLs.map(url => `<a href="${url}" target="_blank"><img src="${url}" class="h-20 w-20 object-cover rounded-md"></a>`).join('')}</div>`
             : '';
 
-        const infoWindowContent = `
+        let popupContent = `
             <div class="w-64">
                 <h3 class="font-bold text-lg mb-2">${translations[lang][job.category.toLowerCase()] || job.category} <span class="text-sm font-medium text-gray-500">(${job.area})</span></h3>
                 <p class="text-sm text-gray-800 mb-2"><b>Address:</b> ${job.customerAddress || translations[lang].noAddress}</p>
                 <p class="text-gray-700 mb-2">${job.notes}</p>
                 ${photoGallery}
-                <div class="text-xs text-gray-500 mt-2 border-t pt-2">
+                <div class="text-xs text-gray-500 mt-2">
                     <p><i class="fa-solid fa-user mr-1"></i> ${job.staffName}</p>
                     <p><i class="fa-solid fa-clock mr-1"></i> ${new Date(job.timestamp.seconds * 1000).toLocaleString()}</p>
                 </div>
                 <div class="mt-3 flex flex-col space-y-2">
                     <a href="https://www.google.com/maps?daddr=${job.location.lat},${job.location.lng}" target="_blank" class="w-full text-center bg-blue-500 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-600 font-semibold">${translations[lang].navigate}</a>
+                    <button id="share-location-btn-${job.id}" class="w-full bg-green-600 text-white px-3 py-1 rounded-md text-sm hover:bg-green-700">${translations[lang].shareLocation}</button>
+                    ${(job.photoURLs && job.photoURLs.length > 0) ? `<button id="share-photo-btn-${job.id}" class="w-full bg-gray-600 text-white px-3 py-1 rounded-md text-sm hover:bg-gray-700">${translations[lang].sharePhoto}</button>` : ''}
                 </div>
             </div>`;
+        marker.bindPopup(popupContent);
         
-        const infoWindow = new google.maps.InfoWindow({ content: infoWindowContent });
-
-        marker.addListener('click', () => {
-            if (currentInfoWindow) {
-                currentInfoWindow.close();
+        marker.on('popupopen', () => {
+             const shareLocationBtn = document.getElementById(`share-location-btn-${job.id}`);
+            if (shareLocationBtn) {
+                shareLocationBtn.addEventListener('click', async () => {
+                    const locationUrl = `https://www.google.com/maps?q=${job.location.lat},${job.location.lng}`;
+                    const shareData = { title: 'Cable Job Location', text: `Location for job: ${job.notes}`, url: locationUrl };
+                     try {
+                        if (navigator.share) await navigator.share(shareData);
+                        else {
+                            await navigator.clipboard.writeText(locationUrl);
+                            shareLocationBtn.textContent = translations[lang].copied;
+                            setTimeout(() => { shareLocationBtn.textContent = translations[lang].shareLocation; }, 2000);
+                        }
+                    } catch(err) { console.error("Share failed:", err); }
+                });
             }
-            infoWindow.open(googleMap, marker);
-            currentInfoWindow = infoWindow;
-        });
-        
-        markers.push(marker);
-        bounds.extend(job.location);
-    });
+            const sharePhotoBtn = document.getElementById(`share-photo-btn-${job.id}`);
+            if (sharePhotoBtn) {
+                sharePhotoBtn.addEventListener('click', async () => {
+                    try {
+                        const files = await Promise.all(job.photoURLs.map(async (url, i) => {
+                            const response = await fetch(url);
+                            const blob = await response.blob();
+                            return new File([blob], `photo-${i+1}.jpg`, { type: blob.type });
+                        }));
 
-    if (jobs.length > 1) {
-        googleMap.fitBounds(bounds);
-    } else if (jobs.length === 1) {
-        googleMap.setCenter(jobs[0].location);
-        googleMap.setZoom(15);
-    }
+                        if (navigator.canShare && navigator.canShare({ files })) {
+                            await navigator.share({
+                                title: 'Cable Job Photos',
+                                text: `Photos from job: ${job.notes}`,
+                                files: files
+                            });
+                        } else {
+                            throw new Error("File sharing not supported.");
+                        }
+                    } catch (err) {
+                        console.error("File share failed, falling back to URL:", err);
+                        await navigator.clipboard.writeText(job.photoURLs.join(', '));
+                        sharePhotoBtn.textContent = translations[lang].copied;
+                        setTimeout(() => { sharePhotoBtn.textContent = translations[lang].sharePhoto; }, 2000);
+                    }
+                });
+            }
+        });
+        markers.push(marker);
+    });
 }
 
 function initAnalyticsView() {
