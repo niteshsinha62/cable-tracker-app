@@ -8,10 +8,6 @@
     <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- LeafletJS for the map (Admin View Only) -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
@@ -20,6 +16,12 @@
 
     <!-- Custom Stylesheet -->
     <link rel="stylesheet" href="style.css">
+
+    <!-- Scripts moved to head with defer to control loading order -->
+    <!-- Your script will run first -->
+    <script src="script.js" type="module" defer></script>
+    <!-- Google Maps script will run second, after initMap is defined. Added 'places' library for search functionality -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC-9SDQFB13XFtgUnomejVuFvUCpusfUls&callback=initMap&libraries=places" defer></script>
 </head>
 <body class="bg-gray-100 font-sans">
 
@@ -89,14 +91,16 @@
                         <textarea id="junction-address" rows="2" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" data-lang-key-placeholder="junctionAddressPlaceholder" placeholder="e.g., House #123, Near Water Tank"></textarea>
                     </div>
 
-                    <!-- Location Section -->
+                    <!-- [UPDATED] Location Section -->
                     <div>
-                        <label class="block text-gray-600 mb-2 font-semibold">Job Location</label>
-                        <input type="text" id="location-link-input" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Paste Google Maps link here">
+                        <label for="location-search-input" class="block text-gray-600 mb-2 font-semibold">Job Location</label>
+                        <input type="text" id="location-search-input" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Search for a location...">
+                        <div id="staff-map" class="mt-2 rounded-lg"></div>
                         <p class="text-center my-2 text-gray-500">OR</p>
                         <button id="current-location-btn" class="w-full bg-gray-600 text-white py-2 rounded-lg hover:bg-gray-700">Use Current Location</button>
                         <p id="location-error" class="text-red-500 text-sm mt-1 hidden"></p>
                     </div>
+
 
                     <div>
                         <label for="job-notes" class="block text-gray-600 mb-2" data-lang-key="jobNotes">Job Notes / Description (Optional)</label>
@@ -140,8 +144,8 @@
                                  <button id="export-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 font-semibold"><i class="fa-solid fa-file-excel mr-2"></i> Quick Export</button>
                                  <select id="language-switcher-admin" class="bg-white border rounded-md px-2 py-1 text-sm">
                                     <option value="en">English</option><option value="hi">हिन्दी</option>
-                                </select>
-                                <button id="logout-btn-admin" class="text-sm text-red-500 hover:underline" data-lang-key="logout">Logout</button>
+                                 </select>
+                                 <button id="logout-btn-admin" class="text-sm text-red-500 hover:underline" data-lang-key="logout">Logout</button>
                             </div>
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -262,6 +266,5 @@
         </div>
 
     </div>
-    <script src="script.js" type="module"></script>
 </body>
 </html>
