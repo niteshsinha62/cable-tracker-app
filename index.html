@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cable Operations Portal</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- SheetJS (XLSX) for Excel Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <!-- Custom Stylesheet -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- [FIXED] Scripts moved to head with defer to control loading order -->
+    <!-- Your script will run first -->
+    <script src="script.js" type="module" defer></script>
+    <!-- Google Maps script will run second, after initMap is defined -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC-9SDQFB13XFtgUnomejVuFvUCpusfUls&callback=initMap" defer></script>
+</head>
+<body class="bg-gray-100 font-sans">
+
+    <!-- Main Application Container -->
+    <div id="app">
+
+        <!-- LOGIN SCREEN -->
+        <div id="login-view" class="flex items-center justify-center h-screen">
+            <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-sm">
+                <h1 class="text-2xl font-bold mb-6 text-center text-gray-700" data-lang-key="loginTitle">Cable Operations Portal</h1>
+                <div class="mb-4">
+                    <label for="email" class="block text-gray-600 mb-2" data-lang-key="email">Email</label>
+                    <input type="email" id="email" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="staff@example.com">
+                </div>
+                <div class="mb-6">
+                    <label for="password" class="block text-gray-600 mb-2" data-lang-key="password">Password</label>
+                    <input type="password" id="password" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="••••••••">
+                </div>
+                <button id="login-btn" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition duration-300" data-lang-key="login">Login</button>
+                <p id="login-error" class="text-red-500 text-sm mt-4 text-center"></p>
+            </div>
+        </div>
+
+        <!-- STAFF VIEW -->
+        <div id="staff-view" class="hidden p-4 max-w-lg mx-auto">
+            <div class="bg-white p-6 rounded-lg shadow-lg">
+                <div class="flex justify-between items-center mb-4 border-b pb-4">
+                    <h1 class="text-2xl font-bold text-gray-800" data-lang-key="recordJobActivity">Record Job Activity</h1>
+                    <div class="flex items-center gap-4">
+                        <select id="language-switcher-staff" class="bg-white border rounded-md px-2 py-1 text-sm">
+                            <option value="en">English</option>
+                            <option value="hi">हिन्दी</option>
+                        </select>
+                        <button id="logout-btn-staff" class="text-sm text-red-500 hover:underline" data-lang-key="logout">Logout</button>
+                    </div>
+                </div>
+                
+                <div class="space-y-4 pt-4">
+                    <div>
+                        <label for="staff-name" class="block text-gray-600 mb-2">Staff Name</label>
+                        <input type="text" id="staff-name" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter your full name">
+                        <p id="staff-name-error" class="text-red-500 text-sm mt-1 hidden"></p>
+                    </div>
+                    <div>
+                        <label for="job-type" class="block text-gray-600 mb-2" data-lang-key="jobType">Job Type</label>
+                        <select id="job-type" class="w-full px-4 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="" data-lang-key="selectJobType">Select a job type...</option>
+                            <option value="Installation" data-lang-key="installation">Installation</option>
+                            <option value="Maintenance" data-lang-key="maintenance">Maintenance</option>
+                            <option value="Repair" data-lang-key="repair">Repair</option>
+                        </select>
+                        <p id="job-type-error" class="text-red-500 text-sm mt-1 hidden"></p>
+                    </div>
+                     <div>
+                        <label for="service-area" class="block text-gray-600 mb-2" data-lang-key="serviceArea">Service Area</label>
+                        <select id="service-area" class="w-full px-4 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="" data-lang-key="selectServiceArea">Select a service area...</option>
+                            <option value="Sipara">Sipara</option>
+                            <option value="Bairiya">Bairiya</option>
+                            <option value="Sampatchak">Sampatchak</option>
+                            <option value="Chauraha">Chauraha</option>
+                        </select>
+                        <p id="service-area-error" class="text-red-500 text-sm mt-1 hidden"></p>
+                    </div>
+                    <div>
+                        <label for="junction-address" class="block text-gray-600 mb-2" data-lang-key="junctionAddress">Cable Junction Address (Optional)</label>
+                        <textarea id="junction-address" rows="2" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" data-lang-key-placeholder="junctionAddressPlaceholder" placeholder="e.g., House #123, Near Water Tank"></textarea>
+                    </div>
+
+                    <!-- Location Section -->
+                    <div>
+                        <label class="block text-gray-600 mb-2 font-semibold">Job Location</label>
+                        <input type="text" id="location-link-input" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Paste Google Maps link here">
+                        <p class="text-center my-2 text-gray-500">OR</p>
+                        <button id="current-location-btn" class="w-full bg-gray-600 text-white py-2 rounded-lg hover:bg-gray-700">Use Current Location</button>
+                        <p id="location-error" class="text-red-500 text-sm mt-1 hidden"></p>
+                    </div>
+
+                    <div>
+                        <label for="job-notes" class="block text-gray-600 mb-2" data-lang-key="jobNotes">Job Notes / Description (Optional)</label>
+                        <textarea id="job-notes" rows="3" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" data-lang-key-placeholder="jobNotesPlaceholder" placeholder="Describe the work done..."></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-gray-600 mb-2 font-semibold" data-lang-key="attachments">Attachments</label>
+                        <div class="grid grid-cols-2 gap-2 mb-2">
+                            <label for="photo" class="w-full text-center cursor-pointer bg-blue-50 text-blue-700 p-2 rounded-lg hover:bg-blue-100 font-semibold"><i class="fa-solid fa-upload mr-2"></i> <span data-lang-key="uploadPhoto">Upload Photo</span></label>
+                            <input type="file" id="photo" accept="image/*" class="hidden" multiple>
+                            <button id="open-camera-btn" class="w-full bg-gray-600 text-white p-2 rounded-lg hover:bg-gray-700 font-semibold"><i class="fa-solid fa-camera mr-2"></i> <span data-lang-key="takePhoto">Take Photo</span></button>
+                        </div>
+                        <p id="photo-error" class="text-red-500 text-sm hidden"></p>
+                        <div id="image-preview-container" class="mt-4 grid grid-cols-3 gap-2"></div>
+                        <div id="camera-view" class="hidden mt-4">
+                            <video id="camera-stream" class="w-full rounded-lg" autoplay playsinline></video><canvas id="camera-canvas" class="hidden"></canvas>
+                            <button id="capture-btn" class="w-full mt-2 bg-red-600 text-white py-2 rounded-lg hover:bg-red-700" data-lang-key="capturePhoto">Capture Photo</button>
+                            <button id="cancel-camera-btn" class="w-full mt-2 bg-gray-400 text-black py-2 rounded-lg hover:bg-gray-500" data-lang-key="cancel">Cancel</button>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-end gap-4 pt-4 border-t">
+                         <button id="cancel-job-btn" class="bg-gray-200 text-gray-800 px-6 py-2 rounded-lg hover:bg-gray-300 font-semibold" data-lang-key="cancel">Cancel</button>
+                        <button id="submit-job-btn" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 font-bold flex items-center justify-center">
+                            <span id="submit-job-text" data-lang-key="submit">Submit</span>
+                            <div id="submit-job-loader" class="loader h-6 w-6 border-t-green-200 hidden"></div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ADMIN CONTAINER -->
+        <div id="admin-container" class="hidden">
+            <!-- DASHBOARD VIEW -->
+            <div id="dashboard-view">
+                <div class="p-6 bg-gray-50 min-h-screen">
+                    <div class="max-w-7xl mx-auto">
+                        <div class="flex justify-between items-center mb-6">
+                             <h1 class="text-3xl font-bold text-gray-800">Admin Dashboard</h1>
+                             <div class="flex items-center gap-4">
+                                 <button id="export-btn" class="bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 font-semibold"><i class="fa-solid fa-file-excel mr-2"></i> Quick Export</button>
+                                 <select id="language-switcher-admin" class="bg-white border rounded-md px-2 py-1 text-sm">
+                                    <option value="en">English</option><option value="hi">हिन्दी</option>
+                                </select>
+                                <button id="logout-btn-admin" class="text-sm text-red-500 hover:underline" data-lang-key="logout">Logout</button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                            <button id="view-map-btn" class="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-semibold text-lg"><i class="fa-solid fa-map-location-dot mr-2"></i> View Map</button>
+                            <button id="view-analytics-btn" class="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 font-semibold text-lg"><i class="fa-solid fa-chart-line mr-2"></i> View Analytics</button>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg shadow-md">
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                                <select id="area-filter" class="w-full px-4 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="all">All Areas</option>
+                                </select>
+                                <select id="job-type-filter" class="w-full px-4 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="all">All Job Types</option>
+                                </select>
+                                <select id="staff-name-filter" class="w-full px-4 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="all">All Staff</option>
+                                </select>
+                                <input type="text" id="search-input" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Search notes...">
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full bg-white">
+                                    <thead class="bg-gray-200">
+                                        <tr>
+                                            <th class="py-2 px-4 text-left sortable-header cursor-pointer" data-sort="area">Area <i class="fa-solid fa-sort"></i></th>
+                                            <th class="py-2 px-4 text-left sortable-header cursor-pointer" data-sort="category">Job Type <i class="fa-solid fa-sort"></i></th>
+                                            <th class="py-2 px-4 text-left sortable-header cursor-pointer" data-sort="staffName">Staff Name <i class="fa-solid fa-sort"></i></th>
+                                            <th class="py-2 px-4 text-left sortable-header cursor-pointer" data-sort="timestamp">Timestamp <i class="fa-solid fa-sort-down"></i></th>
+                                            <th class="py-2 px-4 text-left">Location</th>
+                                            <th class="py-2 px-4 text-left">Photos</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="dashboard-table-body"></tbody>
+                                </table>
+                                <div id="dashboard-loader" class="flex justify-center p-8"><div class="loader"></div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MAP VIEW -->
+            <div id="map-view" class="hidden">
+                <div class="flex flex-col md:flex-row h-screen">
+                    <div class="w-full md:w-1/3 lg:w-1/4 h-1/2 md:h-full overflow-y-auto bg-white shadow-lg p-4 flex flex-col">
+                        <div class="flex justify-between items-center mb-4">
+                            <h1 class="text-2xl font-bold text-gray-800" data-lang-key="jobList">Job List</h1>
+                             <button id="back-to-dashboard-btn" class="text-sm text-blue-500 hover:underline"><i class="fa-solid fa-arrow-left mr-1"></i> Back to Dashboard</button>
+                        </div>
+                        <div class="mb-4 space-y-2">
+                            <select id="map-area-filter" class="w-full px-4 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="all">All Areas</option>
+                            </select>
+                            <input type="text" id="map-search-input" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Search...">
+                        </div>
+                        <p id="map-list-info" class="text-sm text-gray-600 mb-4"></p>
+                        <div id="job-list" class="space-y-3 flex-grow overflow-y-auto">
+                            <div id="job-list-loader" class="flex justify-center p-8"><div class="loader"></div></div>
+                        </div>
+                    </div>
+                    <div id="map" class="w-full md:w-2/3 lg:w-3/4 h-1/2 md:h-full"></div>
+                </div>
+            </div>
+
+            <!-- ANALYTICS VIEW -->
+            <div id="analytics-view" class="hidden p-6 bg-gray-50 min-h-screen">
+                <div class="max-w-7xl mx-auto">
+                    <div class="flex justify-between items-center mb-6">
+                         <h1 class="text-3xl font-bold text-gray-800">Area Performance Analytics</h1>
+                         <button id="back-to-dashboard-btn2" class="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 font-semibold"><i class="fa-solid fa-arrow-left mr-2"></i> Back to Dashboard</button>
+                    </div>
+                    <div class="bg-white p-4 rounded-lg shadow-md mb-6 flex items-center gap-4 flex-wrap">
+                        <label class="font-semibold">Date Range:</label>
+                        <select id="analytics-period" class="px-4 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="month">This Month</option>
+                            <option value="week">This Week</option>
+                            <option value="custom">Custom Range</option>
+                            <option value="all">All Time</option>
+                        </select>
+                        <div id="custom-date-range" class="hidden flex items-center gap-2">
+                            <input type="date" id="start-date" class="px-2 py-1 border rounded-lg">
+                            <span>to</span>
+                            <input type="date" id="end-date" class="px-2 py-1 border rounded-lg">
+                        </div>
+                    </div>
+                    <div id="analytics-results" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Success Modal -->
+        <div id="success-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white p-6 rounded-lg shadow-xl text-center">
+                <h2 class="text-xl font-bold mb-4" data-lang-key="successTitle">Success!</h2>
+                <p class="mb-6" data-lang-key="successMessage">Successfully logged your work.</p>
+                <div class="flex justify-center gap-4">
+                    <button id="new-entry-btn" class="bg-blue-600 text-white px-6 py-2 rounded-lg" data-lang-key="newEntry">New Entry</button>
+                    <button id="logout-success-btn" class="bg-gray-300 px-6 py-2 rounded-lg" data-lang-key="logout">Logout</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Image Preview Modal -->
+        <div id="image-modal" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+            <div class="bg-white p-4 rounded-lg max-w-4xl max-h-full">
+                <div class="flex justify-between items-center mb-2">
+                    <h2 class="text-lg font-bold">Image Preview</h2>
+                    <button id="close-image-modal" class="text-2xl">&times;</button>
+                </div>
+                <div class="relative">
+                    <img id="modal-image" src="" class="max-h-[70vh] w-auto mx-auto">
+                    <button id="prev-image-btn" class="absolute top-1/2 left-2 -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full"><i class="fa-solid fa-chevron-left"></i></button>
+                    <button id="next-image-btn" class="absolute top-1/2 right-2 -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full"><i class="fa-solid fa-chevron-right"></i></button>
+                </div>
+                <div class="mt-2 flex justify-center">
+                     <a id="download-image-btn" href="#" download="job-photo.jpg" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">Download Image</a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <!-- [REMOVED] Scripts from here -->
+</body>
+</html>
