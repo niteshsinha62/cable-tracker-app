@@ -69,7 +69,7 @@ const loginView = document.getElementById('login-view'),
       newEntryBtn = document.getElementById('new-entry-btn'),
       logoutSuccessBtn = document.getElementById('logout-success-btn'),
       currentLocationBtn = document.getElementById('current-location-btn'),
-      locationLinkInput = document.getElementById('location-link-input'),
+      locationSearchInput = document.getElementById('location-search-input'),
       imageModal = document.getElementById('image-modal'),
       closeImageModal = document.getElementById('close-image-modal'),
       modalImage = document.getElementById('modal-image'),
@@ -81,7 +81,10 @@ const loginView = document.getElementById('login-view'),
       endDateInput = document.getElementById('end-date'),
       exportBtn = document.getElementById('export-btn');
 
-let map, markers = [], allJobs = [], currentFilteredJobs = [], currentStream = null, filesToUpload = [],
+// --- State Variables ---
+let googleMap, currentInfoWindow = null, markers = [];
+let staffMap, staffMarker;
+let allJobs = [], currentFilteredJobs = [], currentStream = null, filesToUpload = [],
     selectedLocation = null, currentSort = { key: 'timestamp', dir: 'desc' },
     modalImages = [], currentModalImageIndex = 0, isInitialLoad = true;
 
@@ -153,7 +156,6 @@ onAuthStateChanged(auth, user => {
         loginView.classList.remove('hidden');
         staffView.classList.add('hidden');
         adminContainer.classList.add('hidden');
-        if (map) map.remove();
     }
 });
 
@@ -175,7 +177,7 @@ setupLogoutButtons();
 
 // --- Staff View Logic ---
 function clearStaffForm() {
-    ['staff-name', 'job-type', 'service-area', 'junction-address', 'job-notes', 'photo', 'location-link-input'].forEach(id => document.getElementById(id).value = '');
+    ['staff-name', 'job-type', 'service-area', 'junction-address', 'job-notes', 'photo', 'location-search-input'].forEach(id => document.getElementById(id).value = '');
     ['staff-name-error', 'job-type-error', 'service-area-error', 'photo-error', 'location-error'].forEach(id => {
         const el = document.getElementById(id);
         el.textContent = '';
@@ -185,6 +187,12 @@ function clearStaffForm() {
     imagePreviewContainer.innerHTML = '';
     stopCameraStream();
     selectedLocation = null;
+    if (staffMap) {
+        const defaultCenter = { lat: 20.5937, lng: 78.9629 };
+        staffMap.setCenter(defaultCenter);
+        staffMap.setZoom(5);
+        if (staffMarker) staffMarker.setMap(null);
+    }
 }
 function stopCameraStream() {
     if (currentStream) currentStream.getTracks().forEach(track => track.stop());
@@ -206,7 +214,12 @@ function renderPreviews() {
         reader.readAsDataURL(file);
     });
 }
+
 function initStaffView(user) {
+    if (window.google && !staffMap) {
+        initStaffMapAndAutocomplete();
+    }
+
     photoInput.addEventListener('change', (e) => {
         filesToUpload.push(...e.target.files);
         renderPreviews();
@@ -247,21 +260,64 @@ function initStaffView(user) {
     });
     currentLocationBtn.addEventListener('click', () => {
         navigator.geolocation.getCurrentPosition(pos => {
-            selectedLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-            locationLinkInput.value = `Current Location: ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
+            const location = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            selectedLocation = location;
+            locationSearchInput.value = `Current Location: ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
             document.getElementById('location-error').classList.add('hidden');
+            
+            staffMap.setCenter(location);
+            staffMap.setZoom(15);
+            if (staffMarker) staffMarker.setMap(null);
+            staffMarker = new google.maps.Marker({ position: location, map: staffMap });
         });
     });
-    locationLinkInput.addEventListener('input', () => {
-        selectedLocation = null;
+}
+
+function initStaffMapAndAutocomplete() {
+    const defaultCenter = { lat: 20.5937, lng: 78.9629 };
+    staffMap = new google.maps.Map(document.getElementById('staff-map'), {
+        center: defaultCenter,
+        zoom: 5,
+        disableDefaultUI: true,
+    });
+
+    const autocomplete = new google.maps.places.Autocomplete(locationSearchInput);
+    autocomplete.bindTo('bounds', staffMap);
+
+    autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace();
+        if (!place.geometry) {
+            console.log("No details available for input: '" + place.name + "'");
+            return;
+        }
+
+        if (place.geometry.viewport) {
+            staffMap.fitBounds(place.geometry.viewport);
+        } else {
+            staffMap.setCenter(place.geometry.location);
+            staffMap.setZoom(17);
+        }
+        
+        if (staffMarker) staffMarker.setMap(null);
+        staffMarker = new google.maps.Marker({
+            position: place.geometry.location,
+            map: staffMap
+        });
+
+        selectedLocation = {
+            lat: place.geometry.location.lat(),
+            lng: place.geometry.location.lng()
+        };
+        document.getElementById('location-error').classList.add('hidden');
     });
 }
+
 function validateForm() {
     let isValid = true;
     const lang = localStorage.getItem('language') || 'en';
     const errorMessages = {
-        en: { name: "Please enter your name.", jobType: "Please select a job type.", serviceArea: "Please select a service area.", photo: "Please attach at least one photo.", location: "Please provide a location link or use current location." },
-        hi: { name: "कृपया अपना नाम दर्ज करें।", jobType: "कृपया जॉब का प्रकार चुनें।", serviceArea: "कृपया सेवा क्षेत्र चुनें।", photo: "कृपया कम से कम एक फोटो संलग्न करें।", location: "कृपया एक स्थान लिंक प्रदान करें या वर्तमान स्थान का उपयोग करें।" }
+        en: { name: "Please enter your name.", jobType: "Please select a job type.", serviceArea: "Please select a service area.", photo: "Please attach at least one photo.", location: "Please provide a location." },
+        hi: { name: "कृपया अपना नाम दर्ज करें।", jobType: "कृपया जॉब का प्रकार चुनें।", serviceArea: "कृपया सेवा क्षेत्र चुनें।", photo: "कृपया कम से कम एक फोटो संलग्न करें।", location: "कृपया एक स्थान प्रदान करें।" }
     };
     ['staff-name-error', 'job-type-error', 'service-area-error', 'photo-error', 'location-error'].forEach(id => document.getElementById(id).classList.add('hidden'));
     
@@ -280,7 +336,7 @@ function validateForm() {
         document.getElementById('service-area-error').classList.remove('hidden');
         isValid = false;
     }
-    if (!selectedLocation && !locationLinkInput.value.includes('@')) {
+    if (!selectedLocation) {
         document.getElementById('location-error').textContent = errorMessages[lang].location;
         document.getElementById('location-error').classList.remove('hidden');
         isValid = false;
@@ -297,21 +353,6 @@ submitJobBtn.addEventListener('click', async () => {
     const user = auth.currentUser;
     setSubmitButtonLoading(true);
     try {
-        if (!selectedLocation) {
-            const url = locationLinkInput.value;
-            const coordsMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-            if (coordsMatch) {
-                selectedLocation = { lat: parseFloat(coordsMatch[1]), lng: parseFloat(coordsMatch[2]) };
-            } else {
-                const lang = localStorage.getItem('language') || 'en';
-                const errorText = lang === 'hi' ? "अमान्य मानचित्र लिंक। कृपया ब्राउज़र से पूरा URL कॉपी करें।" : "Invalid map link. Please copy the full URL from the browser.";
-                document.getElementById('location-error').textContent = errorText;
-                document.getElementById('location-error').classList.remove('hidden');
-                setSubmitButtonLoading(false);
-                return;
-            }
-        }
-
         const uploadPromises = filesToUpload.map(file => {
             const formData = new FormData();
             formData.append('file', file);
@@ -347,6 +388,20 @@ function setSubmitButtonLoading(isLoading) {
 }
 
 // --- Admin View Logic ---
+
+window.initMap = () => {
+    if (document.getElementById("map")) {
+        const mapOptions = {
+            center: { lat: 20.5937, lng: 78.9629 },
+            zoom: 5,
+        };
+        googleMap = new google.maps.Map(document.getElementById("map"), mapOptions);
+    }
+    if (document.getElementById("staff-map") && !staffMap) {
+        initStaffMapAndAutocomplete();
+    }
+}
+
 function initAdminView() {
     listenForJobs();
     searchInput.addEventListener('input', applyFiltersAndSort);
@@ -372,12 +427,11 @@ function initAdminView() {
     viewMapBtn.addEventListener('click', () => {
         dashboardView.classList.add('hidden');
         mapView.classList.remove('hidden');
-        if (!map) {
-            map = L.map('map').setView([20.5937, 78.9629], 5);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        if (!googleMap && window.google) {
+            window.initMap();
         }
         populateMapFilterDropdowns();
-        renderMapMarkers(allJobs.slice(0, 10));
+        renderMapMarkers(allJobs.slice(0, 10)); 
     });
 
     viewAnalyticsBtn.addEventListener('click', () => {
@@ -387,7 +441,8 @@ function initAdminView() {
     });
 
     backToDashboardBtn.addEventListener('click', () => {
-        window.location.search = '';
+        mapView.classList.add('hidden');
+        dashboardView.classList.remove('hidden');
     });
     backToDashboardBtn2.addEventListener('click', () => {
         analyticsView.classList.add('hidden');
@@ -429,11 +484,7 @@ function initAdminView() {
             dashboardView.classList.add('hidden');
             analyticsView.classList.add('hidden');
             mapView.classList.remove('hidden');
-
-            if (!map) {
-                map = L.map('map').setView([20.5937, 78.9629], 5);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-            }
+            if (!googleMap && window.google) window.initMap();
             renderMapMarkers(filteredJobs);
         }
     });
@@ -509,7 +560,7 @@ function applyFiltersAndSort() {
         activeHeader.className = currentSort.dir === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down';
     }
     
-    currentFilteredJobs = filteredJobs; // Store for export
+    currentFilteredJobs = filteredJobs;
     renderDashboardTable(filteredJobs);
 }
 
@@ -550,12 +601,14 @@ function listenForJobs() {
                 if (jobToShow) {
                     dashboardView.classList.add('hidden');
                     mapView.classList.remove('hidden');
-                    if (!map) {
-                        map = L.map('map').setView([jobToShow.location.lat, jobToShow.location.lng], 16);
-                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-                    }
-                    renderMapMarkers([jobToShow]);
-                    map.setView([jobToShow.location.lat, jobToShow.location.lng], 16);
+                    const checkMapReady = setInterval(() => {
+                        if (googleMap) {
+                            clearInterval(checkMapReady);
+                            renderMapMarkers([jobToShow]);
+                            googleMap.setCenter(jobToShow.location);
+                            googleMap.setZoom(16);
+                        }
+                    }, 100);
                 }
             }
         }
@@ -612,49 +665,72 @@ function showModalImage(index) {
 }
 
 function renderMapMarkers(jobs) {
-    if (!map) return;
-    markers.forEach(marker => map.removeLayer(marker));
+    if (!googleMap) return;
+
+    markers.forEach(marker => marker.setMap(null));
     markers = [];
+    if (currentInfoWindow) currentInfoWindow.close();
+
     const lang = localStorage.getItem('language') || 'en';
     const isFiltered = mapAreaFilter.value !== 'all' || mapSearchInput.value !== '';
 
     mapListInfo.textContent = isFiltered ? `Showing ${jobs.length} results.` : 'Showing top 10 recent jobs.';
 
     jobList.innerHTML = '';
+    if (jobs.length === 0) {
+        jobList.innerHTML = `<p class="text-center text-gray-500 p-4">${translations[lang].noMatchingJobs}</p>`;
+        return;
+    }
+
+    const bounds = new google.maps.LatLngBounds();
+
     jobs.forEach(job => {
         const card = document.createElement('div');
         card.className = 'job-card bg-gray-50 p-3 rounded-lg border border-gray-200 hover:bg-blue-50 hover:border-blue-300 cursor-pointer';
         card.innerHTML = `
             <div class="flex justify-between items-start">
-                <span class="text-xs font-semibold px-2 py-0-5 rounded-full ${getCategoryColor(job.category).bg} ${getCategoryColor(job.category).text}">${translations[lang][job.category.toLowerCase()] || job.category}</span>
+                <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${getCategoryColor(job.category).bg} ${getCategoryColor(job.category).text}">${translations[lang][job.category.toLowerCase()] || job.category}</span>
             </div>
             <div>
                 <p class="font-bold text-gray-800 mt-2">${job.customerAddress || translations[lang].noAddress}</p>
                 <p class="text-sm text-gray-500 mt-1"><i class="fa-solid fa-user mr-1"></i> ${job.staffName}</p>
                 <p class="text-sm text-gray-500"><i class="fa-solid fa-calendar-days mr-1"></i> ${new Date(job.timestamp.seconds * 1000).toLocaleDateString()}</p>
             </div>`;
+        
+        // [FIXED] Changed the marker icon from a circle to a map pin
+        const marker = new google.maps.Marker({
+            position: job.location,
+            map: googleMap,
+            title: job.customerAddress || job.category,
+            icon: {
+                path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z",
+                fillColor: getCategoryColor(job.category).marker,
+                fillOpacity: 1,
+                strokeWeight: 0,
+                rotation: 0,
+                scale: 1.5,
+                anchor: new google.maps.Point(12, 24),
+            },
+        });
+
         card.addEventListener('click', () => {
-            map.setView([job.location.lat, job.location.lng], 16);
-            const marker = markers.find(m => m.jobId === job.id);
-            if (marker) marker.openPopup();
+            googleMap.panTo(job.location);
+            googleMap.setZoom(16);
+            new google.maps.event.trigger(marker, 'click');
         });
         jobList.appendChild(card);
 
-        const icon = L.divIcon({ html: `<i class="fa-solid fa-location-dot fa-2x" style="color: ${getCategoryColor(job.category).marker};"></i>`, className: 'dummy' });
-        const marker = L.marker([job.location.lat, job.location.lng], { icon }).addTo(map);
-        marker.jobId = job.id;
-        
         const photoGallery = (job.photoURLs && job.photoURLs.length > 0) 
-            ? `<div class="flex gap-2 overflow-x-auto mt-2">${job.photoURLs.map(url => `<a href="${url}" target="_blank"><img src="${url}" class="h-20 w-20 object-cover rounded-md"></a>`).join('')}</div>`
+            ? `<div class="flex gap-2 overflow-x-auto mt-2 pb-2">${job.photoURLs.map(url => `<a href="${url}" target="_blank"><img src="${url}" class="h-20 w-20 object-cover rounded-md"></a>`).join('')}</div>`
             : '';
 
-        let popupContent = `
+        const infoWindowContent = `
             <div class="w-64">
                 <h3 class="font-bold text-lg mb-2">${translations[lang][job.category.toLowerCase()] || job.category} <span class="text-sm font-medium text-gray-500">(${job.area})</span></h3>
                 <p class="text-sm text-gray-800 mb-2"><b>Address:</b> ${job.customerAddress || translations[lang].noAddress}</p>
                 <p class="text-gray-700 mb-2">${job.notes}</p>
                 ${photoGallery}
-                <div class="text-xs text-gray-500 mt-2">
+                <div class="text-xs text-gray-500 mt-2 border-t pt-2">
                     <p><i class="fa-solid fa-user mr-1"></i> ${job.staffName}</p>
                     <p><i class="fa-solid fa-clock mr-1"></i> ${new Date(job.timestamp.seconds * 1000).toLocaleString()}</p>
                 </div>
@@ -664,10 +740,19 @@ function renderMapMarkers(jobs) {
                     ${(job.photoURLs && job.photoURLs.length > 0) ? `<button id="share-photo-btn-${job.id}" class="w-full bg-gray-600 text-white px-3 py-1 rounded-md text-sm hover:bg-gray-700">${translations[lang].sharePhoto}</button>` : ''}
                 </div>
             </div>`;
-        marker.bindPopup(popupContent);
         
-        marker.on('popupopen', () => {
-             const shareLocationBtn = document.getElementById(`share-location-btn-${job.id}`);
+        const infoWindow = new google.maps.InfoWindow({ content: infoWindowContent });
+
+        marker.addListener('click', () => {
+            if (currentInfoWindow) {
+                currentInfoWindow.close();
+            }
+            infoWindow.open(googleMap, marker);
+            currentInfoWindow = infoWindow;
+        });
+
+        google.maps.event.addListener(infoWindow, 'domready', () => {
+            const shareLocationBtn = document.getElementById(`share-location-btn-${job.id}`);
             if (shareLocationBtn) {
                 shareLocationBtn.addEventListener('click', async () => {
                     const locationUrl = `https://www.google.com/maps?q=${job.location.lat},${job.location.lng}`;
@@ -710,8 +795,17 @@ function renderMapMarkers(jobs) {
                 });
             }
         });
+        
         markers.push(marker);
+        bounds.extend(job.location);
     });
+
+    if (jobs.length > 1) {
+        googleMap.fitBounds(bounds);
+    } else if (jobs.length === 1) {
+        googleMap.setCenter(jobs[0].location);
+        googleMap.setZoom(15);
+    }
 }
 
 function initAnalyticsView() {
@@ -748,7 +842,7 @@ function renderAnalytics() {
                 return jobDate >= start.getTime() && jobDate <= end.getTime();
             });
         }
-    } // 'all' uses allJobs
+    }
 
     const areaStats = filteredJobs.reduce((acc, job) => {
         if (!acc[job.area]) {

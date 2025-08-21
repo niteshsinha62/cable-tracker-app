@@ -1,10 +1,12 @@
 /* Custom styles for the map and loader */
 #map { 
-    height: 100vh; 
+    height: 100%;
+    width: 100%;
 }
 
-.leaflet-popup-content-wrapper { 
-    border-radius: 8px; 
+/* [ADDED] Style for the new staff-side map */
+#staff-map {
+    height: 250px;
 }
 
 .loader {
