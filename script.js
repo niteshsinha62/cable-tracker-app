@@ -264,40 +264,16 @@ function initStaffView(user) {
         clearStaffForm();
     });
     currentLocationBtn.addEventListener('click', () => {
-        if (!window.google || !window.google.maps || !window.google.maps.Geocoder) {
-            console.error("Google Maps API not ready for geocoding.");
-            alert("Map service is not ready, please try again in a moment.");
-            return;
-        }
-
         navigator.geolocation.getCurrentPosition(pos => {
             const location = { lat: pos.coords.latitude, lng: pos.coords.longitude };
             selectedLocation = location;
+            locationSearchInput.value = `Lat: ${pos.coords.latitude.toFixed(4)}, Lng: ${pos.coords.longitude.toFixed(4)}`;
             document.getElementById('location-error').classList.add('hidden');
-
+            
             staffMap.setCenter(location);
             staffMap.setZoom(15);
             if (staffMarker) staffMarker.setMap(null);
             staffMarker = new google.maps.Marker({ position: location, map: staffMap });
-
-            const geocoder = new google.maps.Geocoder();
-            geocoder.geocode({ location: location }, (results, status) => {
-                if (status === "OK") {
-                    if (results && results.length > 0) {
-                        // [FIXED] Prefer a more specific address type if available
-                        let bestResult = results.find(r => r.types.includes("street_address")) || 
-                                         results.find(r => r.types.includes("route")) || 
-                                         results[0];
-                        locationSearchInput.value = bestResult.formatted_address;
-                    } else {
-                        console.warn("Reverse geocode was successful but returned no results.");
-                        locationSearchInput.value = `Lat: ${pos.coords.latitude.toFixed(4)}, Lng: ${pos.coords.longitude.toFixed(4)}`;
-                    }
-                } else {
-                    console.error("Geocoder failed due to: " + status);
-                    locationSearchInput.value = `Lat: ${pos.coords.latitude.toFixed(4)}, Lng: ${pos.coords.longitude.toFixed(4)}`;
-                }
-            });
         }, (error) => {
             console.error("Error getting current location: ", error);
             alert("Could not get your current location. Please check your browser's location settings.");
