@@ -18,9 +18,7 @@
     <link rel="stylesheet" href="style.css">
 
     <!-- Scripts moved to head with defer to control loading order -->
-    <!-- Your script will run first -->
     <script src="script.js" type="module" defer></script>
-    <!-- Google Maps script will run second, after initMap is defined. Added 'places' library for search functionality -->
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC-9SDQFB13XFtgUnomejVuFvUCpusfUls&callback=initMap&libraries=places" defer></script>
 </head>
 <body class="bg-gray-100 font-sans">
@@ -91,7 +89,7 @@
                         <textarea id="junction-address" rows="2" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" data-lang-key-placeholder="junctionAddressPlaceholder" placeholder="e.g., House #123, Near Water Tank"></textarea>
                     </div>
 
-                    <!-- [UPDATED] Location Section -->
+                    <!-- Location Section -->
                     <div>
                         <label for="location-search-input" class="block text-gray-600 mb-2 font-semibold">Job Location</label>
                         <input type="text" id="location-search-input" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Search for a location...">
@@ -172,6 +170,7 @@
                                             <th class="py-2 px-4 text-left sortable-header cursor-pointer" data-sort="area">Area <i class="fa-solid fa-sort"></i></th>
                                             <th class="py-2 px-4 text-left sortable-header cursor-pointer" data-sort="category">Job Type <i class="fa-solid fa-sort"></i></th>
                                             <th class="py-2 px-4 text-left sortable-header cursor-pointer" data-sort="staffName">Staff Name <i class="fa-solid fa-sort"></i></th>
+                                            <th class="py-2 px-4 text-left">Address</th> <!-- [ADDED] Address column header -->
                                             <th class="py-2 px-4 text-left sortable-header cursor-pointer" data-sort="timestamp">Timestamp <i class="fa-solid fa-sort-down"></i></th>
                                             <th class="py-2 px-4 text-left">Location</th>
                                             <th class="py-2 px-4 text-left">Photos</th>

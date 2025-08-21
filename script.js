@@ -114,9 +114,9 @@ const translations = {
         attachments: "अटैचमेंट्स", uploadPhoto: "फोटो अपलोड करें", takePhoto: "फोटो लें",
         capturePhoto: "फोटो खींचे", cancel: "रद्द करें", submit: "सबमिट करें",
         jobList: "जॉब सूची", allAreas: "सभी क्षेत्र", searchPlaceholder: "पता, कर्मचारी, नोट्स द्वारा खोजें...",
-        navigate: "नेविगेट करें", shareLocation: "स्थान साझा करें", sharePhoto: "फोटो साझा करें",
-        copied: "कॉपी किया गया!", noAddress: "कोई पता नहीं", noMatchingJobs: "कोई मेल खाने वाली जॉब नहीं मिली।",
-        successTitle: "सफलता!", successMessage: "आपका काम सफलतापूर्वक लॉग हो गया है।", newEntry: "नई एंट्री"
+        navigate: "네비게이션", shareLocation: "위치 공유", sharePhoto: "사진 공유",
+        copied: "복사!", noAddress: "주소 없음", noMatchingJobs: "일치하는 작업이 없습니다.",
+        successTitle: "성공!", successMessage: "작업이 성공적으로 기록되었습니다.", newEntry: "새 항목"
     }
 };
 
@@ -216,9 +216,14 @@ function renderPreviews() {
 }
 
 function initStaffView(user) {
-    if (window.google && !staffMap) {
-        initStaffMapAndAutocomplete();
-    }
+    const checkGoogle = setInterval(() => {
+        if (window.google && window.google.maps && window.google.maps.places) {
+            clearInterval(checkGoogle);
+            if (!staffMap) {
+                initStaffMapAndAutocomplete();
+            }
+        }
+    }, 100);
 
     photoInput.addEventListener('change', (e) => {
         filesToUpload.push(...e.target.files);
@@ -259,16 +264,43 @@ function initStaffView(user) {
         clearStaffForm();
     });
     currentLocationBtn.addEventListener('click', () => {
+        if (!window.google || !window.google.maps || !window.google.maps.Geocoder) {
+            console.error("Google Maps API not ready for geocoding.");
+            alert("Map service is not ready, please try again in a moment.");
+            return;
+        }
+
         navigator.geolocation.getCurrentPosition(pos => {
             const location = { lat: pos.coords.latitude, lng: pos.coords.longitude };
             selectedLocation = location;
-            locationSearchInput.value = `Current Location: ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
             document.getElementById('location-error').classList.add('hidden');
-            
+
             staffMap.setCenter(location);
             staffMap.setZoom(15);
             if (staffMarker) staffMarker.setMap(null);
             staffMarker = new google.maps.Marker({ position: location, map: staffMap });
+
+            const geocoder = new google.maps.Geocoder();
+            geocoder.geocode({ location: location }, (results, status) => {
+                if (status === "OK") {
+                    if (results && results.length > 0) {
+                        // [FIXED] Prefer a more specific address type if available
+                        let bestResult = results.find(r => r.types.includes("street_address")) || 
+                                         results.find(r => r.types.includes("route")) || 
+                                         results[0];
+                        locationSearchInput.value = bestResult.formatted_address;
+                    } else {
+                        console.warn("Reverse geocode was successful but returned no results.");
+                        locationSearchInput.value = `Lat: ${pos.coords.latitude.toFixed(4)}, Lng: ${pos.coords.longitude.toFixed(4)}`;
+                    }
+                } else {
+                    console.error("Geocoder failed due to: " + status);
+                    locationSearchInput.value = `Lat: ${pos.coords.latitude.toFixed(4)}, Lng: ${pos.coords.longitude.toFixed(4)}`;
+                }
+            });
+        }, (error) => {
+            console.error("Error getting current location: ", error);
+            alert("Could not get your current location. Please check your browser's location settings.");
         });
     });
 }
@@ -352,6 +384,11 @@ submitJobBtn.addEventListener('click', async () => {
     if (!validateForm()) return;
     const user = auth.currentUser;
     setSubmitButtonLoading(true);
+
+    if (!junctionAddressInput.value.trim() && locationSearchInput.value) {
+        junctionAddressInput.value = locationSearchInput.value;
+    }
+
     try {
         const uploadPromises = filesToUpload.map(file => {
             const formData = new FormData();
@@ -396,9 +433,6 @@ window.initMap = () => {
             zoom: 5,
         };
         googleMap = new google.maps.Map(document.getElementById("map"), mapOptions);
-    }
-    if (document.getElementById("staff-map") && !staffMap) {
-        initStaffMapAndAutocomplete();
     }
 }
 
@@ -618,7 +652,7 @@ function listenForJobs() {
 function renderDashboardTable(jobs) {
     dashboardTableBody.innerHTML = '';
     if (jobs.length === 0) {
-        dashboardTableBody.innerHTML = `<tr><td colspan="6" class="text-center p-4">No matching jobs found.</td></tr>`;
+        dashboardTableBody.innerHTML = `<tr><td colspan="7" class="text-center p-4">No matching jobs found.</td></tr>`;
         return;
     }
     jobs.forEach(job => {
@@ -628,6 +662,7 @@ function renderDashboardTable(jobs) {
             <td class="py-2 px-4">${job.area}</td>
             <td class="py-2 px-4">${job.category}</td>
             <td class="py-2 px-4">${job.staffName}</td>
+            <td class="py-2 px-4">${job.customerAddress || 'N/A'}</td>
             <td class="py-2 px-4">${new Date(job.timestamp.seconds * 1000).toLocaleString()}</td>
             <td class="py-2 px-4"><a href="index.html?view=map&jobId=${job.id}" target="_blank" class="text-blue-600 hover:underline">View on Map</a></td>
             <td class="py-2 px-4">
@@ -697,7 +732,6 @@ function renderMapMarkers(jobs) {
                 <p class="text-sm text-gray-500"><i class="fa-solid fa-calendar-days mr-1"></i> ${new Date(job.timestamp.seconds * 1000).toLocaleDateString()}</p>
             </div>`;
         
-        // [FIXED] Changed the marker icon from a circle to a map pin
         const marker = new google.maps.Marker({
             position: job.location,
             map: googleMap,
@@ -892,6 +926,7 @@ function exportToExcel(jobs) {
         'Area': job.area,
         'Job Type': job.category,
         'Staff Name': job.staffName,
+        'Address': job.customerAddress,
         'Timestamp': new Date(job.timestamp.seconds * 1000).toLocaleString(),
         'Location': `https://www.google.com/maps?q=${job.location.lat},${job.location.lng}`,
         'Photos': (job.photoURLs || []).join(', ')
