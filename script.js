@@ -7,7 +7,7 @@ const firebaseConfig = {
     messagingSenderId: "363803214900",
     appId: "1:363803214900:web:d65d39ec958a31e7533661"
 };
-const ADMIN_UID = "Ci07GidQBtecle56m6Nsne8IJ643";
+const ADMIN_UID = "6suqqzr9j8gCUqEAHk4jEA1x1AA2";
 
 // --- Cloudinary Configuration ---
 const CLOUDINARY_CLOUD_NAME = "dzcvp4zor";
@@ -16,7 +16,7 @@ const CLOUDINARY_UPLOAD_PRESET = "cable-tracker-preset";
 // --- Firebase Initialization ---
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -43,6 +43,7 @@ const loginView = document.getElementById('login-view'),
       staffNameInput = document.getElementById('staff-name'),
       jobTypeInput = document.getElementById('job-type'),
       serviceAreaInput = document.getElementById('service-area'),
+      landmarkInput = document.getElementById('landmark'),
       junctionAddressInput = document.getElementById('junction-address'),
       jobNotesInput = document.getElementById('job-notes'),
       areaFilterInput = document.getElementById('area-filter'),
@@ -58,7 +59,6 @@ const loginView = document.getElementById('login-view'),
       captureBtn = document.getElementById('capture-btn'),
       cancelCameraBtn = document.getElementById('cancel-camera-btn'),
       langSwitcherStaff = document.getElementById('language-switcher-staff'),
-      langSwitcherAdmin = document.getElementById('language-switcher-admin'),
       viewMapBtn = document.getElementById('view-map-btn'),
       viewAnalyticsBtn = document.getElementById('view-analytics-btn'),
       backToDashboardBtn = document.getElementById('back-to-dashboard-btn'),
@@ -79,14 +79,30 @@ const loginView = document.getElementById('login-view'),
       customDateRange = document.getElementById('custom-date-range'),
       startDateInput = document.getElementById('start-date'),
       endDateInput = document.getElementById('end-date'),
-      exportBtn = document.getElementById('export-btn');
+      exportMenuBtn = document.getElementById('export-menu-btn'),
+      exportOptions = document.getElementById('export-options'),
+      exportExcelBtn = document.getElementById('export-excel-btn'),
+      exportPdfBtn = document.getElementById('export-pdf-btn'),
+      deleteModal = document.getElementById('delete-modal'),
+      cancelDeleteBtn = document.getElementById('cancel-delete-btn'),
+      confirmDeleteBtn = document.getElementById('confirm-delete-btn'),
+      deleteBtnText = document.getElementById('delete-btn-text'),
+      deleteBtnLoader = document.getElementById('delete-btn-loader');
 
 // --- State Variables ---
 let googleMap, currentInfoWindow = null, markers = [];
 let staffMap, staffMarker;
 let allJobs = [], currentFilteredJobs = [], currentStream = null, filesToUpload = [],
     selectedLocation = null, currentSort = { key: 'timestamp', dir: 'desc' },
-    modalImages = [], currentModalImageIndex = 0, isInitialLoad = true;
+    modalImages = [], currentModalImageIndex = 0, isInitialLoad = true,
+    jobToDelete = null, staffViewInitialized = false;
+
+// Landmark data
+const landmarkData = {
+    "KURTHOUL": ["RAJPUTANA", "CHAKIYA PAR", "GYATRI NAGAR", "PASURAMCHAK", "NATHUPUR", "BADHAI TOAL", "RAMESH COLONY", "RAM NAGAR", "MAMTA DHAM", "CHURA MILL", "SCHIDANAND COLONY", "RJESHWAR BIHAR COLONY", "20 FEET", "SHIV NAGAR", "DARIYAPUR", "SADDILICHAK", "BRAHAMASHTHAN", "ADARSH COLONY"],
+    "SAMPATCHAK": ["GOPALPUR", "GOPALPUR BAGICHA", "SOHGI", "RAMPUR", "AZIMCHAK", "BANDOH PAR", "NAHAR PAR", "GOSAIMATH", "ABDULLAHCHAK", "JANAKPUR", "FATEHPUR", "SAMPATCHAK GAUN", "PANCHRUKHIYA", "KUSH PAR", "JAGDAMBA NAGAR"],
+    "SIPARA": []
+};
 
 // --- Language Translations ---
 const translations = {
@@ -102,7 +118,13 @@ const translations = {
         jobList: "Job List", allAreas: "All Areas", searchPlaceholder: "Search by address, staff, notes...",
         navigate: "Navigate", shareLocation: "Share Location", sharePhoto: "Share Photo",
         copied: "Copied!", noAddress: "No Address", noMatchingJobs: "No matching jobs found.",
-        successTitle: "Success!", successMessage: "Successfully logged your work.", newEntry: "New Entry"
+        successTitle: "Success!", successMessage: "Successfully logged your work.", newEntry: "New Entry",
+        staffNameLabel: "Staff Name", staffNamePlaceholder: "Enter your full name",
+        landmarkLabel: "Landmark", jobLocationLabel: "Job Location",
+        jobLocationPlaceholder: "Search for a location...", useCurrentLocation: "Use Current Location",
+        SAMPATCHAK: "SAMPATCHAK", KURTHOUL: "KURTHOUL", SIPARA: "SIPARA",
+        RAJPUTANA: "RAJPUTANA", "CHAKIYA PAR": "CHAKIYA PAR", "GYATRI NAGAR": "GYATRI NAGAR", PASURAMCHAK: "PASURAMCHAK", NATHUPUR: "NATHUPUR", "BADHAI TOAL": "BADHAI TOAL", "RAMESH COLONY": "RAMESH COLONY", "RAM NAGAR": "RAM NAGAR", "MAMTA DHAM": "MAMTA DHAM", "CHURA MILL": "CHURA MILL", "SCHIDANAND COLONY": "SCHIDANAND COLONY", "RJESHWAR BIHAR COLONY": "RJESHWAR BIHAR COLONY", "20 FEET": "20 FEET", "SHIV NAGAR": "SHIV NAGAR", DARIYAPUR: "DARIYAPUR", SADDILICHAK: "SADDILICHAK", BRAHAMASHTHAN: "BRAHAMASHTHAN", "ADARSH COLONY": "ADARSH COLONY",
+        GOPALPUR: "GOPALPUR", "GOPALPUR BAGICHA": "GOPALPUR BAGICHA", SOHGI: "SOHGI", RAMPUR: "RAMPUR", AZIMCHAK: "AZIMCHAK", "BANDOH PAR": "BANDOH PAR", "NAHAR PAR": "NAHAR PAR", GOSAIMATH: "GOSAIMATH", ABDULLAHCHAK: "ABDULLAHCHAK", JANAKPUR: "JANAKPUR", FATEHPUR: "FATEHPUR", "SAMPATCHAK GAUN": "SAMPATCHAK GAUN", PANCHRUKHIYA: "PANCHRUKHIYA", "KUSH PAR": "KUSH PAR", "JAGDAMBA NAGAR": "JAGDAMBA NAGAR"
     },
     hi: {
         loginTitle: "केबल संचालन पोर्टल", email: "ईमेल", password: "पासवर्ड", login: "लॉगिन",
@@ -114,9 +136,15 @@ const translations = {
         attachments: "अटैचमेंट्स", uploadPhoto: "फोटो अपलोड करें", takePhoto: "फोटो लें",
         capturePhoto: "फोटो खींचे", cancel: "रद्द करें", submit: "सबमिट करें",
         jobList: "जॉब सूची", allAreas: "सभी क्षेत्र", searchPlaceholder: "पता, कर्मचारी, नोट्स द्वारा खोजें...",
-        navigate: "네비게이션", shareLocation: "위치 공유", sharePhoto: "사진 공유",
-        copied: "복사!", noAddress: "주소 없음", noMatchingJobs: "일치하는 작업이 없습니다.",
-        successTitle: "성공!", successMessage: "작업이 성공적으로 기록되었습니다.", newEntry: "새 항목"
+        navigate: "नेविगेट", shareLocation: "स्थान साझा करें", sharePhoto: "फोटो साझा करें",
+        copied: "कॉपी किया गया!", noAddress: "कोई पता नहीं", noMatchingJobs: "कोई मेल खाने वाली नौकरी नहीं मिली।",
+        successTitle: "सफलता!", successMessage: "आपका काम सफलतापूर्वक लॉग हो गया।", newEntry: "नई प्रविष्टि",
+        staffNameLabel: "कर्मचारी का नाम", staffNamePlaceholder: "अपना पूरा नाम दर्ज करें",
+        landmarkLabel: "लैंडमार्क", jobLocationLabel: "जॉब लोकेशन",
+        jobLocationPlaceholder: "स्थान खोजें...", useCurrentLocation: "वर्तमान स्थान का उपयोग करें",
+        SAMPATCHAK: "संपतचक", KURTHOUL: "कुरथौल", SIPARA: "सिपारा",
+        RAJPUTANA: "राजपुताना", "CHAKIYA PAR": "चकिया पार", "GYATRI NAGAR": "गायत्री नगर", PASURAMCHAK: "परशुरामचक", NATHUPUR: "नाथूपुर", "BADHAI TOAL": "बधाई टोल", "RAMESH COLONY": "रमेश कॉलोनी", "RAM NAGAR": "राम नगर", "MAMTA DHAM": "ममता धाम", "CHURA MILL": "चुरा मिल", "SCHIDANAND COLONY": "सच्चिदानंद कॉलोनी", "RJESHWAR BIHAR COLONY": "राजेश्वर बिहार कॉलोनी", "20 FEET": "20 फीट", "SHIV NAGAR": "शिव नगर", DARIYAPUR: "दरियापुर", SADDILICHAK: "सद्दीलिचक", BRAHAMASHTHAN: "ब्रह्मस्थान", "ADARSH COLONY": "आदर्श कॉलोनी",
+        GOPALPUR: "गोपालपुर", "GOPALPUR BAGICHA": "गोपालपुर बगीचा", SOHGI: "सोहगी", RAMPUR: "रामपुर", AZIMCHAK: "अजीमचक", "BANDOH PAR": "बंदोह पार", "NAHAR PAR": "नहर पार", GOSAIMATH: "गोसाईमठ", ABDULLAHCHAK: "अब्दुल्लाहचक", JANAKPUR: "जनकपुर", FATEHPUR: "फतेहपुर", "SAMPATCHAK GAUN": "संपतचक गांव", PANCHRUKHIYA: "पंचरुखिया", "KUSH PAR": "कुश पार", "JAGDAMBA NAGAR": "जगदंबा नगर"
     }
 };
 
@@ -129,13 +157,17 @@ function setLanguage(lang) {
         const key = el.getAttribute('data-lang-key-placeholder');
         if (translations[lang][key]) el.placeholder = translations[lang][key];
     });
+
+    const selectedServiceArea = serviceAreaInput.value;
+    Array.from(serviceAreaInput.options).forEach(option => {
+        option.textContent = translations[lang][option.value];
+    });
+    serviceAreaInput.value = selectedServiceArea;
+    populateLandmarks();
+
     localStorage.setItem('language', lang);
     langSwitcherStaff.value = lang;
-    langSwitcherAdmin.value = lang;
 }
-
-langSwitcherStaff.addEventListener('change', (e) => setLanguage(e.target.value));
-langSwitcherAdmin.addEventListener('change', (e) => setLanguage(e.target.value));
 
 // --- Authentication & Page Routing ---
 onAuthStateChanged(auth, user => {
@@ -159,26 +191,27 @@ onAuthStateChanged(auth, user => {
     }
 });
 
-loginBtn.addEventListener('click', () => {
-    signInWithEmailAndPassword(auth, emailInput.value, passwordInput.value).catch(error => {
-        loginError.textContent = "Failed to login. Check email and password.";
-    });
-});
-
 function setupLogoutButtons() {
-    document.getElementById('logout-btn-staff').addEventListener('click', () => signOut(auth));
-    document.getElementById('logout-btn-admin').addEventListener('click', () => signOut(auth));
+    document.getElementById('logout-btn-staff').addEventListener('click', () => {
+        localStorage.setItem('language', 'en');
+        signOut(auth);
+    });
+    document.getElementById('logout-btn-admin').addEventListener('click', () => {
+        localStorage.setItem('language', 'en');
+        signOut(auth);
+    });
     logoutSuccessBtn.addEventListener('click', () => {
         successModal.classList.add('hidden');
+        localStorage.setItem('language', 'en');
         signOut(auth);
     });
 }
-setupLogoutButtons();
 
 // --- Staff View Logic ---
 function clearStaffForm() {
-    ['staff-name', 'job-type', 'service-area', 'junction-address', 'job-notes', 'photo', 'location-search-input'].forEach(id => document.getElementById(id).value = '');
-    ['staff-name-error', 'job-type-error', 'service-area-error', 'photo-error', 'location-error'].forEach(id => {
+    ['staff-name', 'job-type', 'landmark', 'junction-address', 'job-notes', 'photo', 'location-search-input'].forEach(id => document.getElementById(id).value = '');
+    serviceAreaInput.value = 'SAMPATCHAK';
+    ['staff-name-error', 'job-type-error', 'service-area-error', 'landmark-error', 'photo-error', 'location-error'].forEach(id => {
         const el = document.getElementById(id);
         el.textContent = '';
         el.classList.add('hidden');
@@ -193,6 +226,7 @@ function clearStaffForm() {
         staffMap.setZoom(5);
         if (staffMarker) staffMarker.setMap(null);
     }
+    populateLandmarks();
 }
 function stopCameraStream() {
     if (currentStream) currentStream.getTracks().forEach(track => track.stop());
@@ -215,7 +249,29 @@ function renderPreviews() {
     });
 }
 
+function populateLandmarks() {
+    const selectedArea = serviceAreaInput.value;
+    const landmarks = landmarkData[selectedArea] || [];
+    const lang = localStorage.getItem('language') || 'en';
+    landmarkInput.innerHTML = '';
+    if (landmarks.length > 0) {
+        landmarks.forEach(landmark => {
+            const option = document.createElement('option');
+            option.value = landmark;
+            option.textContent = translations[lang][landmark] || landmark;
+            landmarkInput.appendChild(option);
+        });
+        landmarkInput.disabled = false;
+    } else {
+        const option = document.createElement('option');
+        option.textContent = 'No landmarks available';
+        landmarkInput.appendChild(option);
+        landmarkInput.disabled = true;
+    }
+}
+
 function initStaffView(user) {
+    populateLandmarks();
     const checkGoogle = setInterval(() => {
         if (window.google && window.google.maps && window.google.maps.places) {
             clearInterval(checkGoogle);
@@ -225,60 +281,34 @@ function initStaffView(user) {
         }
     }, 100);
 
-    photoInput.addEventListener('change', (e) => {
-        filesToUpload.push(...e.target.files);
-        renderPreviews();
-        document.getElementById('photo-error').classList.add('hidden');
-    });
-    openCameraBtn.addEventListener('click', async () => {
-        try {
-            currentStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-            cameraView.classList.remove('hidden');
-            cameraStream.srcObject = currentStream;
-        } catch (err) { console.error("Error accessing camera:", err); }
-    });
-    cancelCameraBtn.addEventListener('click', stopCameraStream);
-    cancelJobBtn.addEventListener('click', clearStaffForm);
-    captureBtn.addEventListener('click', () => {
-        const context = cameraCanvas.getContext('2d');
-        cameraCanvas.width = cameraStream.videoWidth;
-        cameraCanvas.height = cameraStream.videoHeight;
-        context.drawImage(cameraStream, 0, 0, cameraCanvas.width, cameraCanvas.height);
-        cameraCanvas.toBlob(blob => {
-            const file = new File([blob], `capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
-            filesToUpload.push(file);
+    if (!staffViewInitialized) {
+        photoInput.addEventListener('change', (e) => {
+            filesToUpload.push(...e.target.files);
             renderPreviews();
-            stopCameraStream();
             document.getElementById('photo-error').classList.add('hidden');
-        }, 'image/jpeg', 0.9);
-    });
-    imagePreviewContainer.addEventListener('click', (e) => {
-        if (e.target.classList.contains('remove-img-btn')) {
-            const index = parseInt(e.target.dataset.index, 10);
-            filesToUpload.splice(index, 1);
-            renderPreviews();
-        }
-    });
-    newEntryBtn.addEventListener('click', () => {
-        successModal.classList.add('hidden');
-        clearStaffForm();
-    });
-    currentLocationBtn.addEventListener('click', () => {
-        navigator.geolocation.getCurrentPosition(pos => {
-            const location = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-            selectedLocation = location;
-            locationSearchInput.value = `Lat: ${pos.coords.latitude.toFixed(4)}, Lng: ${pos.coords.longitude.toFixed(4)}`;
-            document.getElementById('location-error').classList.add('hidden');
-            
-            staffMap.setCenter(location);
-            staffMap.setZoom(15);
-            if (staffMarker) staffMarker.setMap(null);
-            staffMarker = new google.maps.Marker({ position: location, map: staffMap });
-        }, (error) => {
-            console.error("Error getting current location: ", error);
-            alert("Could not get your current location. Please check your browser's location settings.");
         });
-    });
+        openCameraBtn.addEventListener('click', async () => {
+            try {
+                currentStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                cameraView.classList.remove('hidden');
+                cameraStream.srcObject = currentStream;
+            } catch (err) { console.error("Error accessing camera:", err); }
+        });
+        captureBtn.addEventListener('click', () => {
+            const context = cameraCanvas.getContext('2d');
+            cameraCanvas.width = cameraStream.videoWidth;
+            cameraCanvas.height = cameraStream.videoHeight;
+            context.drawImage(cameraStream, 0, 0, cameraCanvas.width, cameraCanvas.height);
+            cameraCanvas.toBlob(blob => {
+                const file = new File([blob], `capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
+                filesToUpload.push(file);
+                renderPreviews();
+                stopCameraStream();
+                document.getElementById('photo-error').classList.add('hidden');
+            }, 'image/jpeg', 0.9);
+        });
+        staffViewInitialized = true;
+    }
 }
 
 function initStaffMapAndAutocomplete() {
@@ -324,10 +354,10 @@ function validateForm() {
     let isValid = true;
     const lang = localStorage.getItem('language') || 'en';
     const errorMessages = {
-        en: { name: "Please enter your name.", jobType: "Please select a job type.", serviceArea: "Please select a service area.", photo: "Please attach at least one photo.", location: "Please provide a location." },
-        hi: { name: "कृपया अपना नाम दर्ज करें।", jobType: "कृपया जॉब का प्रकार चुनें।", serviceArea: "कृपया सेवा क्षेत्र चुनें।", photo: "कृपया कम से कम एक फोटो संलग्न करें।", location: "कृपया एक स्थान प्रदान करें।" }
+        en: { name: "Please enter your name.", jobType: "Please select a job type.", serviceArea: "Please select a service area.", landmark: "Please select a landmark.", photo: "Please attach at least one photo.", location: "Please provide a location." },
+        hi: { name: "कृपया अपना नाम दर्ज करें।", jobType: "कृपया जॉब का प्रकार चुनें।", serviceArea: "कृपया सेवा क्षेत्र चुनें।", landmark: "कृपया एक मील का पत्थर चुनें।", photo: "कृपया कम से कम एक फोटो संलग्न करें।", location: "कृपया एक स्थान प्रदान करें।" }
     };
-    ['staff-name-error', 'job-type-error', 'service-area-error', 'photo-error', 'location-error'].forEach(id => document.getElementById(id).classList.add('hidden'));
+    ['staff-name-error', 'job-type-error', 'service-area-error', 'landmark-error', 'photo-error', 'location-error'].forEach(id => document.getElementById(id).classList.add('hidden'));
     
     if (!staffNameInput.value.trim()) {
         document.getElementById('staff-name-error').textContent = errorMessages[lang].name;
@@ -344,6 +374,11 @@ function validateForm() {
         document.getElementById('service-area-error').classList.remove('hidden');
         isValid = false;
     }
+    if (!landmarkInput.value || landmarkInput.disabled) {
+        document.getElementById('landmark-error').textContent = errorMessages[lang].landmark;
+        document.getElementById('landmark-error').classList.remove('hidden');
+        isValid = false;
+    }
     if (!selectedLocation) {
         document.getElementById('location-error').textContent = errorMessages[lang].location;
         document.getElementById('location-error').classList.remove('hidden');
@@ -356,41 +391,7 @@ function validateForm() {
     }
     return isValid;
 }
-submitJobBtn.addEventListener('click', async () => {
-    if (!validateForm()) return;
-    const user = auth.currentUser;
-    setSubmitButtonLoading(true);
 
-    if (!junctionAddressInput.value.trim() && locationSearchInput.value) {
-        junctionAddressInput.value = locationSearchInput.value;
-    }
-
-    try {
-        const uploadPromises = filesToUpload.map(file => {
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-            return fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, { method: 'POST', body: formData })
-                .then(response => response.json())
-                .then(data => data.secure_url);
-        });
-        const photoURLs = await Promise.all(uploadPromises);
-
-        await addDoc(collection(db, "jobs"), {
-            staffName: staffNameInput.value.trim(),
-            staffUid: user.uid, 
-            category: jobTypeInput.value,
-            area: serviceAreaInput.value, 
-            customerAddress: junctionAddressInput.value,
-            notes: jobNotesInput.value, 
-            location: selectedLocation,
-            timestamp: new Date(), 
-            photoURLs: photoURLs
-        });
-        successModal.classList.remove('hidden');
-    } catch (error) { console.error("Error submitting job:", error);
-    } finally { setSubmitButtonLoading(false); }
-});
 function setSubmitButtonLoading(isLoading) {
     const btnText = document.getElementById('submit-job-text');
     const btnLoader = document.getElementById('submit-job-loader');
@@ -412,103 +413,42 @@ window.initMap = () => {
     }
 }
 
+function setDeleteButtonLoading(isLoading) {
+    confirmDeleteBtn.disabled = isLoading;
+    deleteBtnText.classList.toggle('hidden', isLoading);
+    deleteBtnLoader.classList.toggle('hidden', !isLoading);
+    confirmDeleteBtn.classList.toggle('bg-gray-400', isLoading);
+}
+
+async function handleDeleteJob() {
+    if (!jobToDelete) return;
+    setDeleteButtonLoading(true);
+
+    try {
+        await deleteDoc(doc(db, "jobs", jobToDelete));
+        console.log("Job deleted from Firestore.");
+    } catch (error) {
+        console.error("Error deleting job:", error);
+    } finally {
+        deleteModal.classList.add('hidden');
+        jobToDelete = null;
+        setDeleteButtonLoading(false);
+    }
+}
+
 function initAdminView() {
     listenForJobs();
-    searchInput.addEventListener('input', applyFiltersAndSort);
-    areaFilterInput.addEventListener('change', applyFiltersAndSort);
-    jobTypeFilterInput.addEventListener('change', applyFiltersAndSort);
-    staffNameFilterInput.addEventListener('change', applyFiltersAndSort);
-    mapAreaFilter.addEventListener('change', applyMapFilters);
-    mapSearchInput.addEventListener('input', applyMapFilters);
-
-    document.querySelectorAll('.sortable-header').forEach(header => {
-        header.addEventListener('click', () => {
-            const sortKey = header.dataset.sort;
-            if (currentSort.key === sortKey) {
-                currentSort.dir = currentSort.dir === 'asc' ? 'desc' : 'asc';
-            } else {
-                currentSort.key = sortKey;
-                currentSort.dir = 'asc';
-            }
-            applyFiltersAndSort();
-        });
-    });
-
-    viewMapBtn.addEventListener('click', () => {
-        dashboardView.classList.add('hidden');
-        mapView.classList.remove('hidden');
-        if (!googleMap && window.google) {
-            window.initMap();
-        }
-        populateMapFilterDropdowns();
-        renderMapMarkers(allJobs.slice(0, 10)); 
-    });
-
-    viewAnalyticsBtn.addEventListener('click', () => {
-        dashboardView.classList.add('hidden');
-        analyticsView.classList.remove('hidden');
-        initAnalyticsView();
-    });
-
-    backToDashboardBtn.addEventListener('click', () => {
-        mapView.classList.add('hidden');
-        dashboardView.classList.remove('hidden');
-    });
-    backToDashboardBtn2.addEventListener('click', () => {
-        analyticsView.classList.add('hidden');
-        dashboardView.classList.remove('hidden');
-    });
-
-    closeImageModal.addEventListener('click', () => imageModal.classList.add('hidden'));
-    nextImageBtn.addEventListener('click', () => showModalImage(currentModalImageIndex + 1));
-    prevImageBtn.addEventListener('click', () => showModalImage(currentModalImageIndex - 1));
-
-    downloadImageBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        fetch(e.currentTarget.href)
-            .then(res => res.blob())
-            .then(blob => {
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.style.display = 'none';
-                a.href = url;
-                a.download = `job-photo-${currentModalImageIndex + 1}.jpg`;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                a.remove();
-            });
-    });
-
-    analyticsResults.addEventListener('click', (e) => {
-        const link = e.target.closest('.analytics-link');
-        if (link) {
-            e.preventDefault();
-            const area = link.dataset.area;
-            const jobType = link.dataset.jobType;
-            
-            const filteredJobs = allJobs.filter(job => 
-                job.area === area && job.category === jobType
-            );
-
-            dashboardView.classList.add('hidden');
-            analyticsView.classList.add('hidden');
-            mapView.classList.remove('hidden');
-            if (!googleMap && window.google) window.initMap();
-            renderMapMarkers(filteredJobs);
-        }
-    });
-    
-    exportBtn.addEventListener('click', () => {
-        exportToExcel(currentFilteredJobs);
-    });
 }
 
 function populateFilterDropdowns() {
-    const areas = [...new Set(allJobs.map(job => job.area))];
-    const jobTypes = [...new Set(allJobs.map(job => job.category))];
-    const staffNames = [...new Set(allJobs.map(job => job.staffName))];
-    
+    const selectedArea = areaFilterInput.value;
+    const selectedJobType = jobTypeFilterInput.value;
+    const selectedStaff = staffNameFilterInput.value;
+
+    const areas = ["KURTHOUL", "SAMPATCHAK", "SIPARA"];
+    const jobTypes = [...new Set(allJobs.map(job => job.category))].filter(Boolean);
+    const staffNames = [...new Set(allJobs.map(job => job.staffName))].filter(Boolean);
+
     areaFilterInput.innerHTML = '<option value="all">All Areas</option>';
     areas.forEach(area => {
         areaFilterInput.innerHTML += `<option value="${area}">${area}</option>`;
@@ -523,6 +463,10 @@ function populateFilterDropdowns() {
     staffNames.forEach(name => {
         staffNameFilterInput.innerHTML += `<option value="${name}">${name}</option>`;
     });
+
+    areaFilterInput.value = selectedArea;
+    jobTypeFilterInput.value = selectedJobType;
+    staffNameFilterInput.value = selectedStaff;
 }
 
 function populateMapFilterDropdowns() {
@@ -555,7 +499,7 @@ function applyFiltersAndSort() {
         const valB = b[currentSort.key];
         let comparison = 0;
         if (currentSort.key === 'timestamp') {
-            comparison = valA.seconds - valB.seconds;
+            comparison = valB.seconds - valA.seconds;
         } else {
             comparison = String(valA).localeCompare(String(valB));
         }
@@ -596,10 +540,12 @@ function listenForJobs() {
     const q = query(collection(db, "jobs"), orderBy("timestamp", "desc"));
     onSnapshot(q, (querySnapshot) => {
         allJobs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        populateFilterDropdowns();
+        applyFiltersAndSort();
+
         if (isInitialLoad) {
             document.getElementById('dashboard-loader').classList.add('hidden');
-            populateFilterDropdowns();
-            applyFiltersAndSort();
             isInitialLoad = false;
 
             const urlParams = new URLSearchParams(window.location.search);
@@ -635,14 +581,17 @@ function renderDashboardTable(jobs) {
         const row = document.createElement('tr');
         row.className = 'border-b';
         row.innerHTML = `
-            <td class="py-2 px-4">${job.area}</td>
+            <td class="py-2 px-4">${job.area}, ${job.landmark}</td>
             <td class="py-2 px-4">${job.category}</td>
             <td class="py-2 px-4">${job.staffName}</td>
             <td class="py-2 px-4">${job.customerAddress || 'N/A'}</td>
             <td class="py-2 px-4">${new Date(job.timestamp.seconds * 1000).toLocaleString()}</td>
-            <td class="py-2 px-4"><a href="index.html?view=map&jobId=${job.id}" target="_blank" class="text-blue-600 hover:underline">View on Map</a></td>
             <td class="py-2 px-4">
-                ${(job.photoURLs && job.photoURLs.length > 0) ? `<button class="view-photos-btn text-blue-600 hover:underline" data-job-id="${job.id}"><i class="fa-solid fa-images mr-1"></i> View (${job.photoURLs.length})</button>` : 'N/A'}
+                <div class="flex items-center gap-3">
+                    <a href="index.html?view=map&jobId=${job.id}" target="_blank" class="text-blue-600 hover:underline" title="View on Map"><i class="fa-solid fa-map-location-dot"></i></a>
+                    ${(job.photoURLs && job.photoURLs.length > 0) ? `<button class="view-photos-btn text-blue-600 hover:underline" data-job-id="${job.id}" title="View Photos"><i class="fa-solid fa-images"></i> (${job.photoURLs.length})</button>` : ''}
+                    <button class="delete-job-btn text-red-500 hover:text-red-700" data-job-id="${job.id}" title="Delete Job"><i class="fa-solid fa-trash-alt"></i></button>
+                </div>
             </td>
         `;
         dashboardTableBody.appendChild(row);
@@ -655,6 +604,13 @@ function renderDashboardTable(jobs) {
             if (job && job.photoURLs) {
                 openImageModal(job.photoURLs);
             }
+        });
+    });
+
+    document.querySelectorAll('.delete-job-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            jobToDelete = e.currentTarget.dataset.jobId;
+            deleteModal.classList.remove('hidden');
         });
     });
 }
@@ -736,7 +692,7 @@ function renderMapMarkers(jobs) {
 
         const infoWindowContent = `
             <div class="w-64">
-                <h3 class="font-bold text-lg mb-2">${translations[lang][job.category.toLowerCase()] || job.category} <span class="text-sm font-medium text-gray-500">(${job.area})</span></h3>
+                <h3 class="font-bold text-lg mb-2">${translations[lang][job.category.toLowerCase()] || job.category} <span class="text-sm font-medium text-gray-500">(${job.area}, ${job.landmark})</span></h3>
                 <p class="text-sm text-gray-800 mb-2"><b>Address:</b> ${job.customerAddress || translations[lang].noAddress}</p>
                 <p class="text-gray-700 mb-2">${job.notes}</p>
                 ${photoGallery}
@@ -745,7 +701,7 @@ function renderMapMarkers(jobs) {
                     <p><i class="fa-solid fa-clock mr-1"></i> ${new Date(job.timestamp.seconds * 1000).toLocaleString()}</p>
                 </div>
                 <div class="mt-3 flex flex-col space-y-2">
-                    <a href="https://www.google.com/maps?daddr=${job.location.lat},${job.location.lng}" target="_blank" class="w-full text-center bg-blue-500 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-600 font-semibold">${translations[lang].navigate}</a>
+                    <a href="https://www.google.com/maps/daddr=${job.location.lat},${job.location.lng}" target="_blank" class="w-full text-center bg-blue-500 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-600 font-semibold">${translations[lang].navigate}</a>
                     <button id="share-location-btn-${job.id}" class="w-full bg-green-600 text-white px-3 py-1 rounded-md text-sm hover:bg-green-700">${translations[lang].shareLocation}</button>
                     ${(job.photoURLs && job.photoURLs.length > 0) ? `<button id="share-photo-btn-${job.id}" class="w-full bg-gray-600 text-white px-3 py-1 rounded-md text-sm hover:bg-gray-700">${translations[lang].sharePhoto}</button>` : ''}
                 </div>
@@ -820,9 +776,6 @@ function renderMapMarkers(jobs) {
 
 function initAnalyticsView() {
     renderAnalytics();
-    analyticsPeriod.addEventListener('change', renderAnalytics);
-    startDateInput.addEventListener('change', renderAnalytics);
-    endDateInput.addEventListener('change', renderAnalytics);
 }
 
 function renderAnalytics() {
@@ -900,6 +853,7 @@ function renderAnalytics() {
 function exportToExcel(jobs) {
     const dataToExport = jobs.map(job => ({
         'Area': job.area,
+        'Landmark': job.landmark,
         'Job Type': job.category,
         'Staff Name': job.staffName,
         'Address': job.customerAddress,
@@ -914,6 +868,89 @@ function exportToExcel(jobs) {
     XLSX.writeFile(workbook, "Cable_Operations_Export.xlsx");
 }
 
+async function imageUrlToBase64(url) {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+}
+
+async function exportToPdf(jobs) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const margin = 15;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    for (let i = 0; i < jobs.length; i++) {
+        const job = jobs[i];
+        let y = 20;
+
+        if (i > 0) {
+            doc.addPage();
+        }
+
+        doc.setFontSize(16);
+        doc.text("Job Report", pageWidth / 2, y, { align: 'center' });
+        y += 10;
+        doc.setFontSize(10);
+        doc.text(`Timestamp: ${new Date(job.timestamp.seconds * 1000).toLocaleString()}`, margin, y);
+        y += 7;
+        doc.text(`Staff Name: ${job.staffName}`, margin, y);
+        y += 7;
+        doc.text(`Area: ${job.area}, ${job.landmark}`, margin, y);
+        y += 7;
+        doc.text(`Job Type: ${job.category}`, margin, y);
+        y += 7;
+        doc.text(`Address: ${job.customerAddress || 'N/A'}`, margin, y);
+        y += 7;
+        
+        const locationLink = `https://www.google.com/maps?q=${job.location.lat},${job.location.lng}`;
+        doc.setTextColor(0, 0, 255);
+        doc.textWithLink('View on Map', margin, y, { url: locationLink });
+        doc.setTextColor(0, 0, 0);
+        y += 10;
+
+        if (job.photoURLs && job.photoURLs.length > 0) {
+            doc.setFontSize(12);
+            doc.text("Photos:", margin, y);
+            y += 5;
+
+            for (const url of job.photoURLs) {
+                try {
+                    const base64Image = await imageUrlToBase64(url);
+                    const imgProps = doc.getImageProperties(base64Image);
+                    const imgWidth = 80;
+                    const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
+
+                    if (y + imgHeight > pageHeight - margin) {
+                        doc.addPage();
+                        y = margin;
+                    }
+
+                    doc.addImage(base64Image, 'JPEG', margin, y, imgWidth, imgHeight);
+                    y += imgHeight + 5;
+
+                } catch (e) {
+                    console.error("Error adding image to PDF", e);
+                    if (y + 10 > pageHeight - margin) {
+                        doc.addPage();
+                        y = margin;
+                    }
+                    doc.text("Could not load image.", margin, y);
+                    y += 10;
+                }
+            }
+        }
+    }
+
+    doc.save("Cable_Operations_Report.pdf");
+}
+
 
 function getCategoryColor(category) {
     const colors = {
@@ -923,3 +960,187 @@ function getCategoryColor(category) {
     };
     return colors[category] || { bg: 'bg-gray-100', text: 'text-gray-800', marker: '#6b7280' };
 }
+
+function initializeEventListeners() {
+    loginBtn.addEventListener('click', () => {
+        signInWithEmailAndPassword(auth, emailInput.value, passwordInput.value).catch(error => {
+            loginError.textContent = "Failed to login. Check email and password.";
+        });
+    });
+
+    setupLogoutButtons();
+    
+    langSwitcherStaff.addEventListener('change', (e) => setLanguage(e.target.value));
+
+    // Staff View Listeners
+    serviceAreaInput.addEventListener('change', populateLandmarks);
+    cancelCameraBtn.addEventListener('click', stopCameraStream);
+    cancelJobBtn.addEventListener('click', clearStaffForm);
+    imagePreviewContainer.addEventListener('click', (e) => {
+        if (e.target.classList.contains('remove-img-btn')) {
+            const index = parseInt(e.target.dataset.index, 10);
+            filesToUpload.splice(index, 1);
+            renderPreviews();
+        }
+    });
+    newEntryBtn.addEventListener('click', () => {
+        successModal.classList.add('hidden');
+        clearStaffForm();
+    });
+    currentLocationBtn.addEventListener('click', () => {
+        navigator.geolocation.getCurrentPosition(pos => {
+            const location = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            selectedLocation = location;
+            locationSearchInput.value = `Lat: ${pos.coords.latitude.toFixed(4)}, Lng: ${pos.coords.longitude.toFixed(4)}`;
+            document.getElementById('location-error').classList.add('hidden');
+            
+            staffMap.setCenter(location);
+            staffMap.setZoom(15);
+            if (staffMarker) staffMarker.setMap(null);
+            staffMarker = new google.maps.Marker({ position: location, map: staffMap });
+        }, (error) => {
+            console.error("Error getting current location: ", error);
+            alert("Could not get your current location. Please check your browser's location settings.");
+        });
+    });
+    submitJobBtn.addEventListener('click', async () => {
+        if (!validateForm()) return;
+        const user = auth.currentUser;
+        setSubmitButtonLoading(true);
+    
+        if (!junctionAddressInput.value.trim() && locationSearchInput.value) {
+            junctionAddressInput.value = locationSearchInput.value;
+        }
+    
+        try {
+            const uploadPromises = filesToUpload.map(file => {
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+                return fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, { method: 'POST', body: formData })
+                    .then(response => response.json())
+                    .then(data => data.secure_url);
+            });
+            const photoURLs = await Promise.all(uploadPromises);
+    
+            await addDoc(collection(db, "jobs"), {
+                staffName: staffNameInput.value.trim(),
+                staffUid: user.uid, 
+                category: jobTypeInput.value,
+                area: serviceAreaInput.value, 
+                landmark: landmarkInput.value,
+                customerAddress: junctionAddressInput.value,
+                notes: jobNotesInput.value, 
+                location: selectedLocation,
+                timestamp: new Date(), 
+                photoURLs: photoURLs
+            });
+            successModal.classList.remove('hidden');
+        } catch (error) { console.error("Error submitting job:", error);
+        } finally { setSubmitButtonLoading(false); }
+    });
+
+
+    // Admin View Listeners
+    searchInput.addEventListener('input', applyFiltersAndSort);
+    areaFilterInput.addEventListener('change', applyFiltersAndSort);
+    jobTypeFilterInput.addEventListener('change', applyFiltersAndSort);
+    staffNameFilterInput.addEventListener('change', applyFiltersAndSort);
+    mapAreaFilter.addEventListener('change', applyMapFilters);
+    mapSearchInput.addEventListener('input', applyMapFilters);
+    cancelDeleteBtn.addEventListener('click', () => {
+        deleteModal.classList.add('hidden');
+        jobToDelete = null;
+    });
+    confirmDeleteBtn.addEventListener('click', handleDeleteJob);
+    document.querySelectorAll('.sortable-header').forEach(header => {
+        header.addEventListener('click', () => {
+            const sortKey = header.dataset.sort;
+            if (currentSort.key === sortKey) {
+                currentSort.dir = currentSort.dir === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.key = sortKey;
+                currentSort.dir = 'asc';
+            }
+            applyFiltersAndSort();
+        });
+    });
+    viewMapBtn.addEventListener('click', () => {
+        dashboardView.classList.add('hidden');
+        mapView.classList.remove('hidden');
+        if (!googleMap && window.google) {
+            window.initMap();
+        }
+        populateMapFilterDropdowns();
+        renderMapMarkers(allJobs.slice(0, 10)); 
+    });
+    viewAnalyticsBtn.addEventListener('click', () => {
+        dashboardView.classList.add('hidden');
+        analyticsView.classList.remove('hidden');
+        initAnalyticsView();
+    });
+    backToDashboardBtn.addEventListener('click', () => {
+        mapView.classList.add('hidden');
+        dashboardView.classList.remove('hidden');
+    });
+    backToDashboardBtn2.addEventListener('click', () => {
+        analyticsView.classList.add('hidden');
+        dashboardView.classList.remove('hidden');
+    });
+    closeImageModal.addEventListener('click', () => imageModal.classList.add('hidden'));
+    nextImageBtn.addEventListener('click', () => showModalImage(currentModalImageIndex + 1));
+    prevImageBtn.addEventListener('click', () => showModalImage(currentModalImageIndex - 1));
+    downloadImageBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        fetch(e.currentTarget.href)
+            .then(res => res.blob())
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = `job-photo-${currentModalImageIndex + 1}.jpg`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                a.remove();
+            });
+    });
+    analyticsResults.addEventListener('click', (e) => {
+        const link = e.target.closest('.analytics-link');
+        if (link) {
+            e.preventDefault();
+            const area = link.dataset.area;
+            const jobType = link.dataset.jobType;
+            
+            const filteredJobs = allJobs.filter(job => 
+                job.area === area && job.category === jobType
+            );
+
+            dashboardView.classList.add('hidden');
+            analyticsView.classList.add('hidden');
+            mapView.classList.remove('hidden');
+            if (!googleMap && window.google) window.initMap();
+            renderMapMarkers(filteredJobs);
+        }
+    });
+    exportMenuBtn.addEventListener('click', () => {
+        exportOptions.classList.toggle('hidden');
+    });
+    exportExcelBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        exportToExcel(currentFilteredJobs);
+        exportOptions.classList.add('hidden');
+    });
+    exportPdfBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        exportToPdf(currentFilteredJobs);
+        exportOptions.classList.add('hidden');
+    });
+    analyticsPeriod.addEventListener('change', renderAnalytics);
+    startDateInput.addEventListener('change', renderAnalytics);
+    endDateInput.addEventListener('change', renderAnalytics);
+}
+
+// Initialize all event listeners once when the script loads
+initializeEventListeners();
