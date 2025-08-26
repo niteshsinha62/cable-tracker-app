@@ -87,7 +87,11 @@ const loginView = document.getElementById('login-view'),
       cancelDeleteBtn = document.getElementById('cancel-delete-btn'),
       confirmDeleteBtn = document.getElementById('confirm-delete-btn'),
       deleteBtnText = document.getElementById('delete-btn-text'),
-      deleteBtnLoader = document.getElementById('delete-btn-loader');
+      deleteBtnLoader = document.getElementById('delete-btn-loader'),
+      dashboardPeriod = document.getElementById('dashboard-period'),
+      dashboardCustomDateRange = document.getElementById('dashboard-custom-date-range'),
+      dashboardStartDate = document.getElementById('dashboard-start-date'),
+      dashboardEndDate = document.getElementById('dashboard-end-date');
 
 // --- State Variables ---
 let googleMap, currentInfoWindow = null, markers = [];
@@ -111,15 +115,15 @@ const translations = {
         recordJobActivity: "Record Job Activity", logout: "Logout", jobType: "Job Type",
         selectJobType: "Select a job type...", installation: "Installation", maintenance: "Maintenance",
         repair: "Repair", serviceArea: "Service Area", selectServiceArea: "Select a service area...",
-        junctionAddress: "Cable Junction Address (Optional)", junctionAddressPlaceholder: "e.g., House #123, Near Water Tank",
-        jobNotes: "Job Notes / Description (Optional)", jobNotesPlaceholder: "Describe the work done...",
+        cableJunctionAddressLabel: "Cable Junction Address", junctionAddressPlaceholder: "e.g., House #123, Near Water Tank",
+        customerDetailsLabel: "Customer Details / Job Notes", customerDetailsPlaceholder: "Enter customer details and job notes...",
         attachments: "Attachments", uploadPhoto: "Upload Photo", takePhoto: "Take Photo",
         capturePhoto: "Capture Photo", cancel: "Cancel", submit: "Submit",
         jobList: "Job List", allAreas: "All Areas", searchPlaceholder: "Search by address, staff, notes...",
         navigate: "Navigate", shareLocation: "Share Location", sharePhoto: "Share Photo",
         copied: "Copied!", noAddress: "No Address", noMatchingJobs: "No matching jobs found.",
         successTitle: "Success!", successMessage: "Successfully logged your work.", newEntry: "New Entry",
-        staffNameLabel: "Staff Name", staffNamePlaceholder: "Enter your full name",
+        staffNameLabel: "Name", staffNamePlaceholder: "Enter your full name",
         landmarkLabel: "Landmark", jobLocationLabel: "Job Location",
         jobLocationPlaceholder: "Search for a location...", useCurrentLocation: "Use Current Location",
         SAMPATCHAK: "SAMPATCHAK", KURTHOUL: "KURTHOUL", SIPARA: "SIPARA",
@@ -131,15 +135,15 @@ const translations = {
         recordJobActivity: "जॉब गतिविधि रिकॉर्ड करें", logout: "लॉगआउट", jobType: "जॉब का प्रकार",
         selectJobType: "जॉब का प्रकार चुनें...", installation: "इंस्टॉलेशन", maintenance: "रखरखाव",
         repair: "मरम्मत", serviceArea: "सेवा क्षेत्र", selectServiceArea: "सेवा क्षेत्र चुनें...",
-        junctionAddress: "केबल जंक्शन पता (वैकल्पिक)", junctionAddressPlaceholder: "उदा., घर #123, पानी की टंकी के पास",
-        jobNotes: "जॉब नोट्स / विवरण (वैकल्पिक)", jobNotesPlaceholder: "किए गए काम का वर्णन करें...",
+        cableJunctionAddressLabel: "केबल जंक्शन पता", junctionAddressPlaceholder: "उदा., घर #123, पानी की टंकी के पास",
+        customerDetailsLabel: "ग्राहक विवरण / जॉब नोट्स", customerDetailsPlaceholder: "ग्राहक विवरण और जॉब नोट्स दर्ज करें...",
         attachments: "अटैचमेंट्स", uploadPhoto: "फोटो अपलोड करें", takePhoto: "फोटो लें",
         capturePhoto: "फोटो खींचे", cancel: "रद्द करें", submit: "सबमिट करें",
         jobList: "जॉब सूची", allAreas: "सभी क्षेत्र", searchPlaceholder: "पता, कर्मचारी, नोट्स द्वारा खोजें...",
         navigate: "नेविगेट", shareLocation: "स्थान साझा करें", sharePhoto: "फोटो साझा करें",
         copied: "कॉपी किया गया!", noAddress: "कोई पता नहीं", noMatchingJobs: "कोई मेल खाने वाली नौकरी नहीं मिली।",
         successTitle: "सफलता!", successMessage: "आपका काम सफलतापूर्वक लॉग हो गया।", newEntry: "नई प्रविष्टि",
-        staffNameLabel: "कर्मचारी का नाम", staffNamePlaceholder: "अपना पूरा नाम दर्ज करें",
+        staffNameLabel: "नाम", staffNamePlaceholder: "अपना पूरा नाम दर्ज करें",
         landmarkLabel: "लैंडमार्क", jobLocationLabel: "जॉब लोकेशन",
         jobLocationPlaceholder: "स्थान खोजें...", useCurrentLocation: "वर्तमान स्थान का उपयोग करें",
         SAMPATCHAK: "संपतचक", KURTHOUL: "कुरथौल", SIPARA: "सिपारा",
@@ -211,7 +215,7 @@ function setupLogoutButtons() {
 function clearStaffForm() {
     ['staff-name', 'job-type', 'landmark', 'junction-address', 'job-notes', 'photo', 'location-search-input'].forEach(id => document.getElementById(id).value = '');
     serviceAreaInput.value = 'SAMPATCHAK';
-    ['staff-name-error', 'job-type-error', 'service-area-error', 'landmark-error', 'photo-error', 'location-error'].forEach(id => {
+    ['staff-name-error', 'job-type-error', 'service-area-error', 'landmark-error', 'photo-error', 'location-error', 'job-notes-error'].forEach(id => {
         const el = document.getElementById(id);
         el.textContent = '';
         el.classList.add('hidden');
@@ -347,6 +351,10 @@ function initStaffMapAndAutocomplete() {
             lng: place.geometry.location.lng()
         };
         document.getElementById('location-error').classList.add('hidden');
+
+        if (place.formatted_address) {
+            junctionAddressInput.value = place.formatted_address;
+        }
     });
 }
 
@@ -354,10 +362,10 @@ function validateForm() {
     let isValid = true;
     const lang = localStorage.getItem('language') || 'en';
     const errorMessages = {
-        en: { name: "Please enter your name.", jobType: "Please select a job type.", serviceArea: "Please select a service area.", landmark: "Please select a landmark.", photo: "Please attach at least one photo.", location: "Please provide a location." },
-        hi: { name: "कृपया अपना नाम दर्ज करें।", jobType: "कृपया जॉब का प्रकार चुनें।", serviceArea: "कृपया सेवा क्षेत्र चुनें।", landmark: "कृपया एक मील का पत्थर चुनें।", photo: "कृपया कम से कम एक फोटो संलग्न करें।", location: "कृपया एक स्थान प्रदान करें।" }
+        en: { name: "Please enter your name.", jobType: "Please select a job type.", serviceArea: "Please select a service area.", landmark: "Please select a landmark.", photo: "Please attach at least one photo.", location: "Please provide a location.", jobNotes: "Please enter customer details or job notes." },
+        hi: { name: "कृपया अपना नाम दर्ज करें।", jobType: "कृपया जॉब का प्रकार चुनें।", serviceArea: "कृपया सेवा क्षेत्र चुनें।", landmark: "कृपया एक मील का पत्थर चुनें।", photo: "कृपया कम से कम एक फोटो संलग्न करें।", location: "कृपया एक स्थान प्रदान करें।", jobNotes: "कृपया ग्राहक विवरण या जॉब नोट्स दर्ज करें।" }
     };
-    ['staff-name-error', 'job-type-error', 'service-area-error', 'landmark-error', 'photo-error', 'location-error'].forEach(id => document.getElementById(id).classList.add('hidden'));
+    ['staff-name-error', 'job-type-error', 'service-area-error', 'landmark-error', 'photo-error', 'location-error', 'job-notes-error'].forEach(id => document.getElementById(id).classList.add('hidden'));
     
     if (!staffNameInput.value.trim()) {
         document.getElementById('staff-name-error').textContent = errorMessages[lang].name;
@@ -382,6 +390,11 @@ function validateForm() {
     if (!selectedLocation) {
         document.getElementById('location-error').textContent = errorMessages[lang].location;
         document.getElementById('location-error').classList.remove('hidden');
+        isValid = false;
+    }
+    if (!jobNotesInput.value.trim()) {
+        document.getElementById('job-notes-error').textContent = errorMessages[lang].jobNotes;
+        document.getElementById('job-notes-error').classList.remove('hidden');
         isValid = false;
     }
     if (filesToUpload.length === 0) {
@@ -482,7 +495,32 @@ function applyFiltersAndSort() {
     const selectedArea = areaFilterInput.value;
     const selectedJobType = jobTypeFilterInput.value;
     const selectedStaff = staffNameFilterInput.value;
+    const period = dashboardPeriod.value;
     let filteredJobs = allJobs;
+
+    // Date Range Filter
+    const now = new Date();
+    let startDate = new Date();
+    if (period === 'week') {
+        startDate.setDate(now.getDate() - now.getDay());
+        startDate.setHours(0, 0, 0, 0);
+        filteredJobs = filteredJobs.filter(job => (job.timestamp.seconds * 1000) >= startDate.getTime());
+    } else if (period === 'month') {
+        startDate.setDate(1);
+        startDate.setHours(0, 0, 0, 0);
+        filteredJobs = filteredJobs.filter(job => (job.timestamp.seconds * 1000) >= startDate.getTime());
+    } else if (period === 'custom') {
+        const start = dashboardStartDate.valueAsDate;
+        const end = dashboardEndDate.valueAsDate;
+        if (start && end) {
+            start.setHours(0, 0, 0, 0);
+            end.setHours(23, 59, 59, 999);
+            filteredJobs = filteredJobs.filter(job => {
+                const jobDate = job.timestamp.seconds * 1000;
+                return jobDate >= start.getTime() && jobDate <= end.getTime();
+            });
+        }
+    }
 
     if (selectedArea !== 'all') filteredJobs = filteredJobs.filter(job => job.area === selectedArea);
     if (selectedJobType !== 'all') filteredJobs = filteredJobs.filter(job => job.category === selectedJobType);
@@ -585,6 +623,7 @@ function renderDashboardTable(jobs) {
             <td class="py-2 px-4">${job.category}</td>
             <td class="py-2 px-4">${job.staffName}</td>
             <td class="py-2 px-4">${job.customerAddress || 'N/A'}</td>
+            <td class="py-2 px-4">${job.notes || ''}</td>
             <td class="py-2 px-4">${new Date(job.timestamp.seconds * 1000).toLocaleString()}</td>
             <td class="py-2 px-4">
                 <div class="flex items-center gap-3">
@@ -991,16 +1030,29 @@ function initializeEventListeners() {
         navigator.geolocation.getCurrentPosition(pos => {
             const location = { lat: pos.coords.latitude, lng: pos.coords.longitude };
             selectedLocation = location;
-            locationSearchInput.value = `Lat: ${pos.coords.latitude.toFixed(4)}, Lng: ${pos.coords.longitude.toFixed(4)}`;
             document.getElementById('location-error').classList.add('hidden');
-            
+    
             staffMap.setCenter(location);
             staffMap.setZoom(15);
             if (staffMarker) staffMarker.setMap(null);
             staffMarker = new google.maps.Marker({ position: location, map: staffMap });
+    
+            const geocoder = new google.maps.Geocoder();
+            geocoder.geocode({ 'location': location }, (results, status) => {
+                if (status === 'OK') {
+                    if (results[0]) {
+                        locationSearchInput.value = results[0].formatted_address;
+                        junctionAddressInput.value = results[0].formatted_address;
+                    } else {
+                        locationSearchInput.value = `Lat: ${pos.coords.latitude.toFixed(4)}, Lng: ${pos.coords.longitude.toFixed(4)}`;
+                    }
+                } else {
+                    locationSearchInput.value = `Lat: ${pos.coords.latitude.toFixed(4)}, Lng: ${pos.coords.longitude.toFixed(4)}`;
+                    console.error('Geocoder failed due to: ' + status);
+                }
+            });
         }, (error) => {
             console.error("Error getting current location: ", error);
-            alert("Could not get your current location. Please check your browser's location settings.");
         });
     });
     submitJobBtn.addEventListener('click', async () => {
@@ -1046,6 +1098,9 @@ function initializeEventListeners() {
     areaFilterInput.addEventListener('change', applyFiltersAndSort);
     jobTypeFilterInput.addEventListener('change', applyFiltersAndSort);
     staffNameFilterInput.addEventListener('change', applyFiltersAndSort);
+    dashboardPeriod.addEventListener('change', applyFiltersAndSort);
+    dashboardStartDate.addEventListener('change', applyFiltersAndSort);
+    dashboardEndDate.addEventListener('change', applyFiltersAndSort);
     mapAreaFilter.addEventListener('change', applyMapFilters);
     mapSearchInput.addEventListener('input', applyMapFilters);
     cancelDeleteBtn.addEventListener('click', () => {
@@ -1140,6 +1195,10 @@ function initializeEventListeners() {
     analyticsPeriod.addEventListener('change', renderAnalytics);
     startDateInput.addEventListener('change', renderAnalytics);
     endDateInput.addEventListener('change', renderAnalytics);
+    dashboardPeriod.addEventListener('change', () => {
+        dashboardCustomDateRange.classList.toggle('hidden', dashboardPeriod.value !== 'custom');
+        applyFiltersAndSort();
+    });
 }
 
 // Initialize all event listeners once when the script loads
