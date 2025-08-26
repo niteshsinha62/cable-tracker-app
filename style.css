@@ -4,7 +4,6 @@
     width: 100%;
 }
 
-/* [ADDED] Style for the new staff-side map */
 #staff-map {
     height: 250px;
 }
@@ -21,4 +20,9 @@
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+}
+
+/* [ADDED] Custom font size for the dashboard table */
+.dashboard-table {
+    font-size: 0.9rem; /* Adjust this value as needed */
 }

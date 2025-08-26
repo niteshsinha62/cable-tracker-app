@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Star vision Cable & Broadband</title>
     
+    <!-- Favicon for the browser tab -->
+    <link rel="icon" type="image/png" href="images/favicon.png">
+
     <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -58,7 +61,7 @@
                     </div>
                     <div class="flex items-center gap-4">
                         <img src="images/logo.png" alt="Star vision Logo" class="h-10">
-                        <select id="language-switcher-staff" class="bg-white border rounded-md px-2 py-1 text-sm">
+                        <select id="language-switcher-staff" class="bg-white border rounded-md px-2 py-1 text-sm hidden">
                             <option value="en">English</option>
                             <option value="hi">हिन्दी</option>
                         </select>
@@ -68,12 +71,12 @@
                 
                 <div class="space-y-4 pt-4">
                     <div>
-                        <label for="staff-name" class="block text-gray-600 mb-2" data-lang-key="staffNameLabel">Staff Name</label>
+                        <label for="staff-name" class="block text-gray-600 mb-2"><span data-lang-key="staffNameLabel">Name</span> <span class="text-red-500">*</span></label>
                         <input type="text" id="staff-name" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" data-lang-key-placeholder="staffNamePlaceholder" placeholder="Enter your full name">
                         <p id="staff-name-error" class="text-red-500 text-sm mt-1 hidden"></p>
                     </div>
                     <div>
-                        <label for="job-type" class="block text-gray-600 mb-2" data-lang-key="jobType">Job Type</label>
+                        <label for="job-type" class="block text-gray-600 mb-2"><span data-lang-key="jobType">Job Type</span> <span class="text-red-500">*</span></label>
                         <select id="job-type" class="w-full px-4 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="" data-lang-key="selectJobType">Select a job type...</option>
                             <option value="Installation" data-lang-key="installation">Installation</option>
@@ -84,7 +87,7 @@
                     </div>
                      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label for="service-area" class="block text-gray-600 mb-2" data-lang-key="serviceArea">Service Area</label>
+                            <label for="service-area" class="block text-gray-600 mb-2"><span data-lang-key="serviceArea">Service Area</span> <span class="text-red-500">*</span></label>
                             <select id="service-area" class="w-full px-4 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
                                 <option value="SAMPATCHAK">SAMPATCHAK</option>
                                 <option value="KURTHOUL">KURTHOUL</option>
@@ -93,7 +96,7 @@
                             <p id="service-area-error" class="text-red-500 text-sm mt-1 hidden"></p>
                         </div>
                         <div>
-                            <label for="landmark" class="block text-gray-600 mb-2" data-lang-key="landmarkLabel">Landmark</label>
+                            <label for="landmark" class="block text-gray-600 mb-2"><span data-lang-key="landmarkLabel">Landmark</span> <span class="text-red-500">*</span></label>
                             <select id="landmark" class="w-full px-4 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
                                 <!-- Landmark options will be populated by JavaScript -->
                             </select>
@@ -101,13 +104,13 @@
                         </div>
                     </div>
                     <div>
-                        <label for="junction-address" class="block text-gray-600 mb-2" data-lang-key="junctionAddress">Cable Junction Address (Optional)</label>
+                        <label for="junction-address" class="block text-gray-600 mb-2"><span data-lang-key="cableJunctionAddressLabel">Cable Junction Address</span></label>
                         <textarea id="junction-address" rows="2" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" data-lang-key-placeholder="junctionAddressPlaceholder" placeholder="e.g., House #123, Near Water Tank"></textarea>
                     </div>
 
                     <!-- Location Section -->
                     <div>
-                        <label for="location-search-input" class="block text-gray-600 mb-2 font-semibold" data-lang-key="jobLocationLabel">Job Location</label>
+                        <label for="location-search-input" class="block text-gray-600 mb-2 font-semibold"><span data-lang-key="jobLocationLabel">Job Location</span> <span class="text-red-500">*</span></label>
                         <input type="text" id="location-search-input" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" data-lang-key-placeholder="jobLocationPlaceholder" placeholder="Search for a location...">
                         <div id="staff-map" class="mt-2 rounded-lg"></div>
                         <p class="text-center my-2 text-gray-500">OR</p>
@@ -117,11 +120,12 @@
 
 
                     <div>
-                        <label for="job-notes" class="block text-gray-600 mb-2" data-lang-key="jobNotes">Job Notes / Description (Optional)</label>
-                        <textarea id="job-notes" rows="3" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" data-lang-key-placeholder="jobNotesPlaceholder" placeholder="Describe the work done..."></textarea>
+                        <label for="job-notes" class="block text-gray-600 mb-2"><span data-lang-key="customerDetailsLabel">Customer Details / Job Notes</span> <span class="text-red-500">*</span></label>
+                        <textarea id="job-notes" rows="3" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" data-lang-key-placeholder="customerDetailsPlaceholder" placeholder="Enter customer details and job notes..."></textarea>
+                        <p id="job-notes-error" class="text-red-500 text-sm mt-1 hidden"></p>
                     </div>
                     <div>
-                        <label class="block text-gray-600 mb-2 font-semibold" data-lang-key="attachments">Attachments</label>
+                        <label class="block text-gray-600 mb-2 font-semibold"><span data-lang-key="attachments">Attachments</span> <span class="text-red-500">*</span></label>
                         <div class="grid grid-cols-2 gap-2 mb-2">
                             <label for="photo" class="w-full text-center cursor-pointer bg-blue-50 text-blue-700 p-2 rounded-lg hover:bg-blue-100 font-semibold"><i class="fa-solid fa-upload mr-2"></i> <span data-lang-key="uploadPhoto">Upload Photo</span></label>
                             <input type="file" id="photo" accept="image/*" class="hidden" multiple>
@@ -154,7 +158,7 @@
                     <div class="max-w-7xl mx-auto">
                         <div class="flex justify-between items-center mb-6">
                             <div>
-                                <p class="text-md text-gray-600">Admin Dashboard</p>
+                                <p class="text-md text-gray-600">Cable Service Dashboard</p>
                             </div>
                              <div class="flex items-center gap-4">
                                  <img src="images/logo.png" alt="Star vision Logo" class="h-12">
@@ -194,14 +198,30 @@
                                 </select>
                                 <input type="text" id="search-input" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Search notes...">
                             </div>
+                            <!-- [ADDED] Date Range Filter -->
+                            <div class="bg-gray-50 p-3 rounded-lg mb-4 flex items-center gap-4 flex-wrap">
+                                <label class="font-semibold">Date Range:</label>
+                                <select id="dashboard-period" class="px-4 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="all">All Time</option>
+                                    <option value="month">This Month</option>
+                                    <option value="week">This Week</option>
+                                    <option value="custom">Custom Range</option>
+                                </select>
+                                <div id="dashboard-custom-date-range" class="hidden flex items-center gap-2">
+                                    <input type="date" id="dashboard-start-date" class="px-2 py-1 border rounded-lg">
+                                    <span>to</span>
+                                    <input type="date" id="dashboard-end-date" class="px-2 py-1 border rounded-lg">
+                                </div>
+                            </div>
                             <div class="overflow-x-auto">
-                                <table class="min-w-full bg-white">
+                                <table class="min-w-full bg-white dashboard-table">
                                     <thead class="bg-gray-200">
                                         <tr>
                                             <th class="py-2 px-4 text-left sortable-header cursor-pointer" data-sort="area">Area & Landmark <i class="fa-solid fa-sort"></i></th>
                                             <th class="py-2 px-4 text-left sortable-header cursor-pointer" data-sort="category">Job Type <i class="fa-solid fa-sort"></i></th>
                                             <th class="py-2 px-4 text-left sortable-header cursor-pointer" data-sort="staffName">Staff Name <i class="fa-solid fa-sort"></i></th>
                                             <th class="py-2 px-4 text-left">Address</th>
+                                            <th class="py-2 px-4 text-left">Customer Details/Notes</th>
                                             <th class="py-2 px-4 text-left sortable-header cursor-pointer" data-sort="timestamp">Timestamp <i class="fa-solid fa-sort-down"></i></th>
                                             <th class="py-2 px-4 text-left">Actions</th>
                                         </tr>
