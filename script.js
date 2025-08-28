@@ -104,7 +104,7 @@ let allJobs = [], currentFilteredJobs = [], currentStream = null, filesToUpload 
 // Landmark data
 const landmarkData = {
     "KURTHOUL": ["RAJPUTANA", "CHAKIYA PAR", "GYATRI NAGAR", "PASURAMCHAK", "NATHUPUR", "BADHAI TOAL", "RAMESH COLONY", "RAM NAGAR", "MAMTA DHAM", "CHURA MILL", "SCHIDANAND COLONY", "RJESHWAR BIHAR COLONY", "20 FEET", "SHIV NAGAR", "DARIYAPUR", "SADDILICHAK", "BRAHAMASHTHAN", "ADARSH COLONY"],
-    "SAMPATCHAK": ["GOPALPUR", "GOPALPUR BAGICHA", "SOHGI", "RAMPUR", "AZIMCHAK", "BANDOH PAR", "NAHAR PAR", "GOSAIMATH", "ABDULLAHCHAK", "JANAKPUR", "FATEHPUR", "SAMPATCHAK GAUN", "PANCHRUKHIYA", "KUSH PAR", "JAGDAMBA NAGAR"],
+    "SAMPATCHAK": ["GOPALPUR", "GOPALPUR BAGICHA", "SOHGI", "RAMPUR", "AZIMCHAK", "BANDOH PAR", "NAHAR PAR", "GOSAIMATH", "ABDULLAHCHAK", "JANAKPUR", "FATEHPUR", "SAMPATCHAK GAUN", "PANCHRUKHIYA", "KUSH PAR", "JAGDAMBA NAGAR", "CHIPURA"],
     "SIPARA": []
 };
 
@@ -740,7 +740,7 @@ function renderMapMarkers(jobs) {
                     <p><i class="fa-solid fa-clock mr-1"></i> ${new Date(job.timestamp.seconds * 1000).toLocaleString()}</p>
                 </div>
                 <div class="mt-3 flex flex-col space-y-2">
-                    <a href="https://www.google.com/maps/daddr=${job.location.lat},${job.location.lng}" target="_blank" class="w-full text-center bg-blue-500 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-600 font-semibold">${translations[lang].navigate}</a>
+                    <a href="https://www.google.com/maps?daddr=${job.location.lat},${job.location.lng}" target="_blank" class="w-full text-center bg-blue-500 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-600 font-semibold">${translations[lang].navigate}</a>
                     <button id="share-location-btn-${job.id}" class="w-full bg-green-600 text-white px-3 py-1 rounded-md text-sm hover:bg-green-700">${translations[lang].shareLocation}</button>
                     ${(job.photoURLs && job.photoURLs.length > 0) ? `<button id="share-photo-btn-${job.id}" class="w-full bg-gray-600 text-white px-3 py-1 rounded-md text-sm hover:bg-gray-700">${translations[lang].sharePhoto}</button>` : ''}
                 </div>
