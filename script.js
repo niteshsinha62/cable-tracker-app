@@ -721,7 +721,7 @@ function renderDashboardTable(jobs) {
 function populateStaffFormForEdit(job) {
     document.getElementById('staff-view-title').textContent = "Edit Job Record";
     document.getElementById('submit-job-text').textContent = "Update";
-    locationSection.classList.remove('hidden');
+    locationSection.classList.add('hidden');
 
     staffNameInput.value = job.staffName;
     jobTypeInput.value = job.category;
@@ -730,18 +730,8 @@ function populateStaffFormForEdit(job) {
     landmarkInput.value = job.landmark;
     junctionAddressInput.value = job.customerAddress || '';
     jobNotesInput.value = job.notes;
-    locationSearchInput.value = job.customerAddress || `Lat: ${job.location.lat}, Lng: ${job.location.lng}`;
-
+    
     selectedLocation = job.location;
-    if (staffMap && selectedLocation) {
-        staffMap.setCenter(selectedLocation);
-        staffMap.setZoom(17);
-        if (staffMarker) staffMarker.setMap(null);
-        staffMarker = new google.maps.Marker({
-            position: selectedLocation,
-            map: staffMap
-        });
-    }
     
     filesToUpload = []; // Clear any pending new files
     if (job.photoURLs && job.photoURLs.length > 0) {
@@ -1131,7 +1121,6 @@ async function updateJob() {
             landmark: landmarkInput.value,
             customerAddress: junctionAddressInput.value,
             notes: jobNotesInput.value,
-            location: selectedLocation,
             photoURLs: allPhotoURLs,
             lastUpdated: new Date() // Add a timestamp for the update
         };
