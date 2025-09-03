@@ -73,13 +73,16 @@
                 <div class="space-y-4 pt-4">
                     <div>
                         <label for="staff-name" class="block text-gray-600 mb-2"><span data-lang-key="staffNameLabel">Name</span> <span class="text-red-500">*</span></label>
-                        <input type="text" id="staff-name" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" data-lang-key-placeholder="staffNamePlaceholder" placeholder="Enter your full name">
+                        <select id="staff-name" class="w-full px-4 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="" disabled selected data-lang-key="selectStaffName">Select your name...</option>
+                            <!-- Staff names will be populated by JavaScript -->
+                        </select>
                         <p id="staff-name-error" class="text-red-500 text-sm mt-1 hidden"></p>
                     </div>
                     <div>
                         <label for="job-type" class="block text-gray-600 mb-2"><span data-lang-key="jobType">Job Type</span> <span class="text-red-500">*</span></label>
                         <select id="job-type" class="w-full px-4 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <option value="" data-lang-key="selectJobType">Select a job type...</option>
+                            <option value="" disabled selected data-lang-key="selectJobType">Select a job type...</option>
                             <option value="Installation" data-lang-key="installation">Installation</option>
                             <option value="Maintenance" data-lang-key="maintenance">Maintenance</option>
                             <option value="Repair" data-lang-key="repair">Repair</option>
@@ -185,9 +188,10 @@
                                  <button id="logout-btn-admin" class="text-sm text-red-500 hover:underline" data-lang-key="logout">Logout</button>
                             </div>
                         </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                             <button id="view-map-btn" class="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-semibold text-lg"><i class="fa-solid fa-map-location-dot mr-2"></i> View Map</button>
                             <button id="view-analytics-btn" class="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 font-semibold text-lg"><i class="fa-solid fa-chart-line mr-2"></i> View Analytics</button>
+                            <button id="manage-staff-btn" class="w-full bg-gray-600 text-white py-3 rounded-lg hover:bg-gray-700 font-semibold text-lg"><i class="fa-solid fa-users mr-2"></i> Manage Staff</button>
                         </div>
                         <div class="bg-white p-4 rounded-lg shadow-md">
                             <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
@@ -238,6 +242,41 @@
                     </div>
                 </div>
             </div>
+            
+            <!-- MANAGE STAFF VIEW -->
+            <div id="manage-staff-view" class="hidden p-6 bg-gray-50 min-h-screen">
+                <div class="max-w-4xl mx-auto">
+                    <div class="flex justify-between items-center mb-6">
+                        <div>
+                            <h2 class="text-2xl font-bold text-gray-800">Manage Staff Members</h2>
+                            <p class="text-md text-gray-600">Add, view, or remove staff from the system.</p>
+                        </div>
+                        <button id="back-to-dashboard-btn3" class="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 font-semibold"><i class="fa-solid fa-arrow-left mr-2"></i> Back to Dashboard</button>
+                    </div>
+
+                    <!-- Add Staff Form -->
+                    <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">Add New Staff</h3>
+                        <div class="flex items-center gap-4">
+                            <input type="text" id="new-staff-name-input" class="flex-grow px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter new staff member's name">
+                            <button id="add-staff-btn" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 font-bold flex items-center justify-center">
+                                <span id="add-staff-btn-text">Add Staff</span>
+                                <div id="add-staff-btn-loader" class="loader h-6 w-6 border-t-green-200 hidden"></div>
+                            </button>
+                        </div>
+                        <p id="add-staff-error" class="text-red-500 text-sm mt-2 hidden"></p>
+                    </div>
+
+                    <!-- Staff List -->
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">Current Staff List</h3>
+                        <div id="staff-list-container" class="space-y-3">
+                            <!-- Staff members will be populated here -->
+                            <div id="staff-list-loader" class="flex justify-center p-8"><div class="loader"></div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <!-- MAP VIEW -->
             <div id="map-view" class="hidden">
@@ -278,10 +317,11 @@
                     <div class="bg-white p-4 rounded-lg shadow-md mb-6 flex items-center gap-4 flex-wrap">
                         <label class="font-semibold">Date Range:</label>
                         <select id="analytics-period" class="px-4 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="all">All Time</option>
                             <option value="month">This Month</option>
                             <option value="week">This Week</option>
                             <option value="custom">Custom Range</option>
-                            <option value="all">All Time</option>
+                            
                         </select>
                         <div id="custom-date-range" class="hidden flex items-center gap-2">
                             <input type="date" id="start-date" class="px-2 py-1 border rounded-lg">
@@ -315,6 +355,21 @@
                     <button id="confirm-delete-btn" class="bg-red-600 text-white px-6 py-2 rounded-lg w-28 h-10 flex items-center justify-center">
                         <span id="delete-btn-text">Delete</span>
                         <div id="delete-btn-loader" class="loader h-6 w-6 border-t-red-200 hidden"></div>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Staff Delete Confirmation Modal -->
+        <div id="delete-staff-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white p-6 rounded-lg shadow-xl text-center max-w-sm">
+                <h2 class="text-xl font-bold mb-4">Confirm Deletion</h2>
+                <p class="mb-6">Are you sure you want to remove this staff member? This will not affect past job records.</p>
+                <div class="flex justify-center gap-4">
+                    <button id="cancel-delete-staff-btn" class="bg-gray-300 px-6 py-2 rounded-lg">Cancel</button>
+                    <button id="confirm-delete-staff-btn" class="bg-red-600 text-white px-6 py-2 rounded-lg w-28 h-10 flex items-center justify-center">
+                        <span id="delete-staff-btn-text">Delete</span>
+                        <div id="delete-staff-btn-loader" class="loader h-6 w-6 border-t-red-200 hidden"></div>
                     </button>
                 </div>
             </div>
