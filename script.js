@@ -16,7 +16,7 @@ const CLOUDINARY_UPLOAD_PRESET = "cable-tracker-preset";
 // --- Firebase Initialization ---
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, doc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -66,10 +66,12 @@ const loginView = document.getElementById('login-view'),
       analyticsPeriod = document.getElementById('analytics-period'),
       analyticsResults = document.getElementById('analytics-results'),
       successModal = document.getElementById('success-modal'),
-      newEntryBtn = document.getElementById('new-entry-btn'),
-      logoutSuccessBtn = document.getElementById('logout-success-btn'),
+      okBtn = document.getElementById('ok-btn'),
       currentLocationBtn = document.getElementById('current-location-btn'),
+      currentLocationBtnText = document.getElementById('current-location-btn-text'),
+      currentLocationLoader = document.getElementById('current-location-loader'),
       locationSearchInput = document.getElementById('location-search-input'),
+      locationSection = document.getElementById('location-section'),
       imageModal = document.getElementById('image-modal'),
       closeImageModal = document.getElementById('close-image-modal'),
       modalImage = document.getElementById('modal-image'),
@@ -88,6 +90,11 @@ const loginView = document.getElementById('login-view'),
       confirmDeleteBtn = document.getElementById('confirm-delete-btn'),
       deleteBtnText = document.getElementById('delete-btn-text'),
       deleteBtnLoader = document.getElementById('delete-btn-loader'),
+      updateModal = document.getElementById('update-modal'),
+      cancelUpdateBtn = document.getElementById('cancel-update-btn'),
+      confirmUpdateBtn = document.getElementById('confirm-update-btn'),
+      updateBtnText = document.getElementById('update-btn-text'),
+      updateBtnLoader = document.getElementById('update-btn-loader'),
       dashboardPeriod = document.getElementById('dashboard-period'),
       dashboardCustomDateRange = document.getElementById('dashboard-custom-date-range'),
       dashboardStartDate = document.getElementById('dashboard-start-date'),
@@ -99,12 +106,13 @@ let staffMap, staffMarker;
 let allJobs = [], currentFilteredJobs = [], currentStream = null, filesToUpload = [],
     selectedLocation = null, currentSort = { key: 'timestamp', dir: 'desc' },
     modalImages = [], currentModalImageIndex = 0, isInitialLoad = true,
-    jobToDelete = null, staffViewInitialized = false;
+    jobToDelete = null, staffViewInitialized = false,
+    jobToEdit = null, isEditMode = false;
 
 // Landmark data
 const landmarkData = {
     "KURTHOUL": ["RAJPUTANA", "CHAKIYA PAR", "GYATRI NAGAR", "PASURAMCHAK", "NATHUPUR", "BADHAI TOAL", "RAMESH COLONY", "RAM NAGAR", "MAMTA DHAM", "CHURA MILL", "SCHIDANAND COLONY", "RJESHWAR BIHAR COLONY", "20 FEET", "SHIV NAGAR", "DARIYAPUR", "SADDILICHAK", "BRAHAMASHTHAN", "ADARSH COLONY"],
-    "SAMPATCHAK": ["GOPALPUR", "GOPALPUR BAGICHA", "SOHGI", "RAMPUR", "AZIMCHAK", "BANDOH PAR", "NAHAR PAR", "GOSAIMATH", "ABDULLAHCHAK", "JANAKPUR", "FATEHPUR", "SAMPATCHAK GAUN", "PANCHRUKHIYA", "KUSH PAR", "JAGDAMBA NAGAR"],
+    "SAMPATCHAK": ["GOPALPUR", "GOPALPUR BAGICHA", "SOHGI", "RAMPUR", "AZIMCHAK", "BANDOH PAR", "NAHAR PAR", "GOSAIMATH", "ABDULLAHCHAK", "JANAKPUR", "FATEHPUR", "SAMPATCHAK GAUN", "PANCHRUKHIYA", "KUSH PAR", "JAGDAMBA NAGAR", "CHIPURA"],
     "SIPARA": []
 };
 
@@ -118,16 +126,17 @@ const translations = {
         cableJunctionAddressLabel: "Cable Junction Address", junctionAddressPlaceholder: "e.g., House #123, Near Water Tank",
         customerDetailsLabel: "Customer Details / Job Notes", customerDetailsPlaceholder: "Enter customer details and job notes...",
         attachments: "Attachments", uploadPhoto: "Upload Photo", takePhoto: "Take Photo",
-        capturePhoto: "Capture Photo", cancel: "Cancel", submit: "Submit",
+        capturePhoto: "Capture Photo", cancel: "Cancel", submit: "Submit", update: "Update",
         jobList: "Job List", allAreas: "All Areas", searchPlaceholder: "Search by address, staff, notes...",
         navigate: "Navigate", shareLocation: "Share Location", sharePhoto: "Share Photo",
         copied: "Copied!", noAddress: "No Address", noMatchingJobs: "No matching jobs found.",
         successTitle: "Success!", successMessage: "Successfully logged your work.", newEntry: "New Entry",
+        updateSuccessMessage: "Job record updated successfully.",
         staffNameLabel: "Name", staffNamePlaceholder: "Enter your full name",
         landmarkLabel: "Landmark", jobLocationLabel: "Job Location",
         jobLocationPlaceholder: "Search for a location...", useCurrentLocation: "Use Current Location",
         SAMPATCHAK: "SAMPATCHAK", KURTHOUL: "KURTHOUL", SIPARA: "SIPARA",
-        RAJPUTANA: "RAJPUTANA", "CHAKIYA PAR": "CHAKIYA PAR", "GYATRI NAGAR": "GYATRI NAGAR", PASURAMCHAK: "PASURAMCHAK", NATHUPUR: "NATHUPUR", "BADHAI TOAL": "BADHAI TOAL", "RAMESH COLONY": "RAMESH COLONY", "RAM NAGAR": "RAM NAGAR", "MAMTA DHAM": "MAMTA DHAM", "CHURA MILL": "CHURA MILL", "SCHIDANAND COLONY": "SCHIDANAND COLONY", "RJESHWAR BIHAR COLONY": "RJESHWAR BIHAR COLONY", "20 FEET": "20 FEET", "SHIV NAGAR": "SHIV NAGAR", DARIYAPUR: "DARIYAPUR", SADDILICHAK: "SADDILICHAK", BRAHAMASHTHAN: "BRAHAMASHTHAN", "ADARSH COLONY": "ADARSH COLONY",
+        RAJPUTANA: "RAJPUTANA", "CHAKIYA PAR": "CHAKIYA PAR", "GYATRI NAGAR": "GYATRI NAGAR", PASURAMCHAK: "PASURAMCHAK", NATHUPUR: "NATHUPUR", "BADHAI TOAL": "BADHAI TOAL", "RAMESH COLONY": "RAMESH COLONY", "RAM NAGAR": "RAM NAGAR", "MAMTA DHAM": "MAMTA DHAM", "CHURA MILL": "CHURA MILL", "SCHIDANAND COLONY": "SCHIDANAND COLONY", "RJESHWAR BIHAR COLONY": "RJESHWAR BIHAR COLONY", "20 FEET": "20 FEET", "SHIV NAGAR": "SHIV NAGAR", DARIYAPUR: "DARIYAPUR", "SADDILICHAK": "SADDILICHAK", BRAHAMASHTHAN: "BRAHAMASHTHAN", "ADARSH COLONY": "ADARSH COLONY",
         GOPALPUR: "GOPALPUR", "GOPALPUR BAGICHA": "GOPALPUR BAGICHA", SOHGI: "SOHGI", RAMPUR: "RAMPUR", AZIMCHAK: "AZIMCHAK", "BANDOH PAR": "BANDOH PAR", "NAHAR PAR": "NAHAR PAR", GOSAIMATH: "GOSAIMATH", ABDULLAHCHAK: "ABDULLAHCHAK", JANAKPUR: "JANAKPUR", FATEHPUR: "FATEHPUR", "SAMPATCHAK GAUN": "SAMPATCHAK GAUN", PANCHRUKHIYA: "PANCHRUKHIYA", "KUSH PAR": "KUSH PAR", "JAGDAMBA NAGAR": "JAGDAMBA NAGAR"
     },
     hi: {
@@ -138,11 +147,12 @@ const translations = {
         cableJunctionAddressLabel: "केबल जंक्शन पता", junctionAddressPlaceholder: "उदा., घर #123, पानी की टंकी के पास",
         customerDetailsLabel: "ग्राहक विवरण / जॉब नोट्स", customerDetailsPlaceholder: "ग्राहक विवरण और जॉब नोट्स दर्ज करें...",
         attachments: "अटैचमेंट्स", uploadPhoto: "फोटो अपलोड करें", takePhoto: "फोटो लें",
-        capturePhoto: "फोटो खींचे", cancel: "रद्द करें", submit: "सबमिट करें",
+        capturePhoto: "फोटो खींचे", cancel: "रद्द करें", submit: "सबमिट करें", update: "अपडेट करें",
         jobList: "जॉब सूची", allAreas: "सभी क्षेत्र", searchPlaceholder: "पता, कर्मचारी, नोट्स द्वारा खोजें...",
         navigate: "नेविगेट", shareLocation: "स्थान साझा करें", sharePhoto: "फोटो साझा करें",
         copied: "कॉपी किया गया!", noAddress: "कोई पता नहीं", noMatchingJobs: "कोई मेल खाने वाली नौकरी नहीं मिली।",
         successTitle: "सफलता!", successMessage: "आपका काम सफलतापूर्वक लॉग हो गया।", newEntry: "नई प्रविष्टि",
+        updateSuccessMessage: "जॉब रिकॉर्ड सफलतापूर्वक अपडेट किया गया।",
         staffNameLabel: "नाम", staffNamePlaceholder: "अपना पूरा नाम दर्ज करें",
         landmarkLabel: "लैंडमार्क", jobLocationLabel: "जॉब लोकेशन",
         jobLocationPlaceholder: "स्थान खोजें...", useCurrentLocation: "वर्तमान स्थान का उपयोग करें",
@@ -191,7 +201,7 @@ onAuthStateChanged(auth, user => {
     } else {
         loginView.classList.remove('hidden');
         staffView.classList.add('hidden');
-        adminContainer.classList.add('hidden');
+        adminContainer.add('hidden');
     }
 });
 
@@ -201,11 +211,6 @@ function setupLogoutButtons() {
         signOut(auth);
     });
     document.getElementById('logout-btn-admin').addEventListener('click', () => {
-        localStorage.setItem('language', 'en');
-        signOut(auth);
-    });
-    logoutSuccessBtn.addEventListener('click', () => {
-        successModal.classList.add('hidden');
         localStorage.setItem('language', 'en');
         signOut(auth);
     });
@@ -224,6 +229,7 @@ function clearStaffForm() {
     imagePreviewContainer.innerHTML = '';
     stopCameraStream();
     selectedLocation = null;
+    locationSection.classList.remove('hidden');
     if (staffMap) {
         const defaultCenter = { lat: 20.5937, lng: 78.9629 };
         staffMap.setCenter(defaultCenter);
@@ -231,27 +237,50 @@ function clearStaffForm() {
         if (staffMarker) staffMarker.setMap(null);
     }
     populateLandmarks();
+    
+    // Reset edit mode state
+    isEditMode = false;
+    jobToEdit = null;
+    document.getElementById('staff-view-title').textContent = "Record Job Activity";
+    document.getElementById('submit-job-text').textContent = "Submit";
 }
+
 function stopCameraStream() {
     if (currentStream) currentStream.getTracks().forEach(track => track.stop());
     cameraView.classList.add('hidden');
 }
-function renderPreviews() {
+
+function renderPreviews(filesOrUrls) {
     imagePreviewContainer.innerHTML = '';
-    filesToUpload.forEach((file, index) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const previewWrapper = document.createElement('div');
-            previewWrapper.className = 'relative';
-            previewWrapper.innerHTML = `
-                <img src="${e.target.result}" class="w-full h-24 object-cover rounded-lg">
-                <button data-index="${index}" class="remove-img-btn absolute top-0 right-0 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center">&times;</button>
-            `;
-            imagePreviewContainer.appendChild(previewWrapper);
+    filesOrUrls.forEach((item, index) => {
+        const previewWrapper = document.createElement('div');
+        previewWrapper.className = 'relative';
+
+        const removeBtn = document.createElement('button');
+        removeBtn.dataset.index = index;
+        removeBtn.className = 'remove-img-btn absolute top-0 right-0 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center z-10';
+        removeBtn.innerHTML = '&times;';
+        previewWrapper.appendChild(removeBtn);
+
+        const img = document.createElement('img');
+        img.className = 'w-full h-24 object-cover rounded-lg';
+        
+        if (typeof item === 'string') { // It's a URL
+            img.src = item;
+            removeBtn.dataset.url = item; // Store URL for removal
+        } else { // It's a File object
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                img.src = e.target.result;
+            }
+            reader.readAsDataURL(item);
         }
-        reader.readAsDataURL(file);
+        
+        previewWrapper.appendChild(img);
+        imagePreviewContainer.appendChild(previewWrapper);
     });
 }
+
 
 function populateLandmarks() {
     const selectedArea = serviceAreaInput.value;
@@ -288,7 +317,8 @@ function initStaffView(user) {
     if (!staffViewInitialized) {
         photoInput.addEventListener('change', (e) => {
             filesToUpload.push(...e.target.files);
-            renderPreviews();
+            const currentImages = Array.from(imagePreviewContainer.querySelectorAll('img')).map(img => img.src);
+            renderPreviews([...currentImages, ...filesToUpload.filter(f => typeof f !== 'string')]);
             document.getElementById('photo-error').classList.add('hidden');
         });
         openCameraBtn.addEventListener('click', async () => {
@@ -306,7 +336,8 @@ function initStaffView(user) {
             cameraCanvas.toBlob(blob => {
                 const file = new File([blob], `capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
                 filesToUpload.push(file);
-                renderPreviews();
+                const currentImages = Array.from(imagePreviewContainer.querySelectorAll('img')).map(img => img.src);
+                renderPreviews([...currentImages, ...filesToUpload.filter(f => typeof f !== 'string')]);
                 stopCameraStream();
                 document.getElementById('photo-error').classList.add('hidden');
             }, 'image/jpeg', 0.9);
@@ -397,7 +428,8 @@ function validateForm() {
         document.getElementById('job-notes-error').classList.remove('hidden');
         isValid = false;
     }
-    if (filesToUpload.length === 0) {
+    const existingPhotos = Array.from(imagePreviewContainer.querySelectorAll('img')).length;
+    if (filesToUpload.length === 0 && existingPhotos === 0) {
         document.getElementById('photo-error').textContent = errorMessages[lang].photo;
         document.getElementById('photo-error').classList.remove('hidden');
         isValid = false;
@@ -412,6 +444,21 @@ function setSubmitButtonLoading(isLoading) {
     btnText.classList.toggle('hidden', isLoading);
     btnLoader.classList.toggle('hidden', !isLoading);
     submitJobBtn.classList.toggle('bg-gray-400', isLoading);
+}
+
+
+function setUpdateButtonLoading(isLoading) {
+    confirmUpdateBtn.disabled = isLoading;
+    updateBtnText.classList.toggle('hidden', isLoading);
+    updateBtnLoader.classList.toggle('hidden', !isLoading);
+    confirmUpdateBtn.classList.toggle('bg-gray-400', isLoading);
+}
+
+function setCurrentLocationButtonLoading(isLoading) {
+    currentLocationBtn.disabled = isLoading;
+    currentLocationBtnText.classList.toggle('hidden', isLoading);
+    currentLocationLoader.classList.toggle('hidden', !isLoading);
+    currentLocationBtn.classList.toggle('bg-gray-400', isLoading);
 }
 
 // --- Admin View Logic ---
@@ -627,6 +674,7 @@ function renderDashboardTable(jobs) {
             <td class="py-2 px-4">${new Date(job.timestamp.seconds * 1000).toLocaleString()}</td>
             <td class="py-2 px-4">
                 <div class="flex items-center gap-3">
+                    <button class="edit-job-btn text-blue-600 hover:underline" data-job-id="${job.id}" title="Edit Job"><i class="fa-solid fa-pencil-alt"></i></button>
                     <a href="index.html?view=map&jobId=${job.id}" target="_blank" class="text-blue-600 hover:underline" title="View on Map"><i class="fa-solid fa-map-location-dot"></i></a>
                     ${(job.photoURLs && job.photoURLs.length > 0) ? `<button class="view-photos-btn text-blue-600 hover:underline" data-job-id="${job.id}" title="View Photos"><i class="fa-solid fa-images"></i> (${job.photoURLs.length})</button>` : ''}
                     <button class="delete-job-btn text-red-500 hover:text-red-700" data-job-id="${job.id}" title="Delete Job"><i class="fa-solid fa-trash-alt"></i></button>
@@ -634,6 +682,21 @@ function renderDashboardTable(jobs) {
             </td>
         `;
         dashboardTableBody.appendChild(row);
+    });
+
+    document.querySelectorAll('.edit-job-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const jobId = e.currentTarget.dataset.jobId;
+            const jobData = allJobs.find(j => j.id === jobId);
+            if (jobData) {
+                isEditMode = true;
+                jobToEdit = jobId;
+                populateStaffFormForEdit(jobData);
+                dashboardView.classList.add('hidden');
+                adminContainer.classList.add('hidden');
+                staffView.classList.remove('hidden');
+            }
+        });
     });
 
     document.querySelectorAll('.view-photos-btn').forEach(btn => {
@@ -653,6 +716,31 @@ function renderDashboardTable(jobs) {
         });
     });
 }
+
+
+function populateStaffFormForEdit(job) {
+    document.getElementById('staff-view-title').textContent = "Edit Job Record";
+    document.getElementById('submit-job-text').textContent = "Update";
+    locationSection.classList.add('hidden');
+
+    staffNameInput.value = job.staffName;
+    jobTypeInput.value = job.category;
+    serviceAreaInput.value = job.area;
+    populateLandmarks();
+    landmarkInput.value = job.landmark;
+    junctionAddressInput.value = job.customerAddress || '';
+    jobNotesInput.value = job.notes;
+    
+    selectedLocation = job.location;
+    
+    filesToUpload = []; // Clear any pending new files
+    if (job.photoURLs && job.photoURLs.length > 0) {
+        renderPreviews(job.photoURLs);
+    } else {
+        imagePreviewContainer.innerHTML = '';
+    }
+}
+
 
 function openImageModal(images) {
     modalImages = images;
@@ -740,7 +828,7 @@ function renderMapMarkers(jobs) {
                     <p><i class="fa-solid fa-clock mr-1"></i> ${new Date(job.timestamp.seconds * 1000).toLocaleString()}</p>
                 </div>
                 <div class="mt-3 flex flex-col space-y-2">
-                    <a href="https://www.google.com/maps/daddr=${job.location.lat},${job.location.lng}" target="_blank" class="w-full text-center bg-blue-500 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-600 font-semibold">${translations[lang].navigate}</a>
+                    <a href="https://www.google.com/maps?daddr=${job.location.lat},${job.location.lng}" target="_blank" class="w-full text-center bg-blue-500 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-600 font-semibold">${translations[lang].navigate}</a>
                     <button id="share-location-btn-${job.id}" class="w-full bg-green-600 text-white px-3 py-1 rounded-md text-sm hover:bg-green-700">${translations[lang].shareLocation}</button>
                     ${(job.photoURLs && job.photoURLs.length > 0) ? `<button id="share-photo-btn-${job.id}" class="w-full bg-gray-600 text-white px-3 py-1 rounded-md text-sm hover:bg-gray-700">${translations[lang].sharePhoto}</button>` : ''}
                 </div>
@@ -1000,6 +1088,63 @@ function getCategoryColor(category) {
     return colors[category] || { bg: 'bg-gray-100', text: 'text-gray-800', marker: '#6b7280' };
 }
 
+async function updateJob() {
+    if (!validateForm() || !jobToEdit) return;
+    
+    setUpdateButtonLoading(true);
+
+    try {
+        // 1. Upload new photos to Cloudinary
+        const uploadPromises = filesToUpload.map(file => {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+            return fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, { method: 'POST', body: formData })
+                .then(response => response.json())
+                .then(data => data.secure_url);
+        });
+        const newPhotoURLs = await Promise.all(uploadPromises);
+
+        // 2. Get existing photo URLs
+        const existingPhotoURLs = Array.from(imagePreviewContainer.querySelectorAll('img'))
+            .map(img => img.src)
+            .filter(src => src.startsWith('https://'));
+
+        // 3. Combine photo URLs
+        const allPhotoURLs = [...existingPhotoURLs, ...newPhotoURLs];
+
+        // 4. Prepare data for Firestore update
+        const updatedData = {
+            staffName: staffNameInput.value.trim(),
+            category: jobTypeInput.value,
+            area: serviceAreaInput.value,
+            landmark: landmarkInput.value,
+            customerAddress: junctionAddressInput.value,
+            notes: jobNotesInput.value,
+            photoURLs: allPhotoURLs,
+            lastUpdated: new Date() // Add a timestamp for the update
+        };
+
+        // 5. Update the document in Firestore
+        const jobRef = doc(db, "jobs", jobToEdit);
+        await updateDoc(jobRef, updatedData);
+
+        // 6. Show success and reset
+        updateModal.classList.add('hidden');
+        const lang = localStorage.getItem('language') || 'en';
+        document.getElementById('success-modal-title').textContent = translations[lang].successTitle;
+        document.getElementById('success-modal-message').textContent = translations[lang].updateSuccessMessage;
+        successModal.classList.remove('hidden');
+        
+    } catch (error) {
+        console.error("Error updating job:", error);
+        alert("Failed to update job. Please try again.");
+    } finally {
+        setUpdateButtonLoading(false);
+    }
+}
+
+
 function initializeEventListeners() {
     loginBtn.addEventListener('click', () => {
         signInWithEmailAndPassword(auth, emailInput.value, passwordInput.value).catch(error => {
@@ -1014,19 +1159,50 @@ function initializeEventListeners() {
     // Staff View Listeners
     serviceAreaInput.addEventListener('change', populateLandmarks);
     cancelCameraBtn.addEventListener('click', stopCameraStream);
-    cancelJobBtn.addEventListener('click', clearStaffForm);
+    cancelJobBtn.addEventListener('click', () => {
+        if (isEditMode) {
+            // If editing, go back to admin view
+            staffView.classList.add('hidden');
+            adminContainer.classList.remove('hidden');
+            dashboardView.classList.remove('hidden');
+            clearStaffForm(); // This also resets isEditMode
+        } else {
+            // If creating new, just clear the form
+            clearStaffForm();
+        }
+    });
     imagePreviewContainer.addEventListener('click', (e) => {
         if (e.target.classList.contains('remove-img-btn')) {
             const index = parseInt(e.target.dataset.index, 10);
-            filesToUpload.splice(index, 1);
-            renderPreviews();
+            const urlToRemove = e.target.dataset.url;
+
+            if (urlToRemove) {
+                // It's an existing image URL, remove it from the DOM
+                e.target.parentElement.remove();
+                // We need to re-render to update indices
+                const currentImages = Array.from(imagePreviewContainer.querySelectorAll('img')).map(img => img.src);
+                renderPreviews(currentImages);
+            } else {
+                // It's a new file, remove from filesToUpload array
+                filesToUpload.splice(index, 1);
+                const currentImages = Array.from(imagePreviewContainer.querySelectorAll('img')).map(img => img.src).filter(src => src.startsWith('https://'));
+                renderPreviews([...currentImages, ...filesToUpload]);
+            }
         }
     });
-    newEntryBtn.addEventListener('click', () => {
+    okBtn.addEventListener('click', () => {
         successModal.classList.add('hidden');
-        clearStaffForm();
+        if (isEditMode) {
+            staffView.classList.add('hidden');
+            adminContainer.classList.remove('hidden');
+            dashboardView.classList.remove('hidden');
+            clearStaffForm();
+        } else {
+            clearStaffForm();
+        }
     });
     currentLocationBtn.addEventListener('click', () => {
+        setCurrentLocationButtonLoading(true);
         navigator.geolocation.getCurrentPosition(pos => {
             const location = { lat: pos.coords.latitude, lng: pos.coords.longitude };
             selectedLocation = location;
@@ -1050,13 +1226,21 @@ function initializeEventListeners() {
                     locationSearchInput.value = `Lat: ${pos.coords.latitude.toFixed(4)}, Lng: ${pos.coords.longitude.toFixed(4)}`;
                     console.error('Geocoder failed due to: ' + status);
                 }
+                setCurrentLocationButtonLoading(false);
             });
         }, (error) => {
             console.error("Error getting current location: ", error);
+            setCurrentLocationButtonLoading(false);
         });
     });
     submitJobBtn.addEventListener('click', async () => {
         if (!validateForm()) return;
+
+        if (isEditMode) {
+            updateModal.classList.remove('hidden');
+            return;
+        }
+
         const user = auth.currentUser;
         setSubmitButtonLoading(true);
     
@@ -1087,6 +1271,9 @@ function initializeEventListeners() {
                 timestamp: new Date(), 
                 photoURLs: photoURLs
             });
+            const lang = localStorage.getItem('language') || 'en';
+            document.getElementById('success-modal-title').textContent = translations[lang].successTitle;
+            document.getElementById('success-modal-message').textContent = translations[lang].successMessage;
             successModal.classList.remove('hidden');
         } catch (error) { console.error("Error submitting job:", error);
         } finally { setSubmitButtonLoading(false); }
@@ -1108,6 +1295,12 @@ function initializeEventListeners() {
         jobToDelete = null;
     });
     confirmDeleteBtn.addEventListener('click', handleDeleteJob);
+
+    cancelUpdateBtn.addEventListener('click', () => {
+        updateModal.classList.add('hidden');
+    });
+    confirmUpdateBtn.addEventListener('click', updateJob);
+
     document.querySelectorAll('.sortable-header').forEach(header => {
         header.addEventListener('click', () => {
             const sortKey = header.dataset.sort;
