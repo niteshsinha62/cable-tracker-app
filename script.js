@@ -432,9 +432,9 @@ function initStaffView(user) {
     if (!staffViewInitialized) {
         photoInput.addEventListener('change', (e) => {
             filesToUpload.push(...e.target.files);
-            const currentImages = Array.from(imagePreviewContainer.querySelectorAll('img')).map(img => img.src);
-            renderPreviews([...currentImages, ...filesToUpload.filter(f => typeof f !== 'string')]);
+            renderPreviews(filesToUpload);
             document.getElementById('photo-error').classList.add('hidden');
+            e.target.value = null; // Clear the input to allow re-selecting the same file
         });
         openCameraBtn.addEventListener('click', async () => {
             try {
@@ -451,8 +451,7 @@ function initStaffView(user) {
             cameraCanvas.toBlob(blob => {
                 const file = new File([blob], `capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
                 filesToUpload.push(file);
-                const currentImages = Array.from(imagePreviewContainer.querySelectorAll('img')).map(img => img.src);
-                renderPreviews([...currentImages, ...filesToUpload.filter(f => typeof f !== 'string')]);
+                renderPreviews(filesToUpload);
                 stopCameraStream();
                 document.getElementById('photo-error').classList.add('hidden');
             }, 'image/jpeg', 0.9);
@@ -856,7 +855,8 @@ function populateStaffFormForEdit(job) {
     
     filesToUpload = [];
     if (job.photoURLs && job.photoURLs.length > 0) {
-        renderPreviews(job.photoURLs);
+        filesToUpload.push(...job.photoURLs);
+        renderPreviews(filesToUpload);
     } else {
         imagePreviewContainer.innerHTML = '';
     }
@@ -1215,7 +1215,10 @@ async function updateJob() {
     setUpdateButtonLoading(true);
 
     try {
-        const uploadPromises = filesToUpload.map(file => {
+        const newFilesToUpload = filesToUpload.filter(item => typeof item !== 'string');
+        const existingPhotoURLs = filesToUpload.filter(item => typeof item === 'string');
+
+        const uploadPromises = newFilesToUpload.map(file => {
             const formData = new FormData();
             formData.append('file', file);
             formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
@@ -1224,10 +1227,6 @@ async function updateJob() {
                 .then(data => data.secure_url);
         });
         const newPhotoURLs = await Promise.all(uploadPromises);
-
-        const existingPhotoURLs = Array.from(imagePreviewContainer.querySelectorAll('img'))
-            .map(img => img.src)
-            .filter(src => src.startsWith('https://'));
 
         const allPhotoURLs = [...existingPhotoURLs, ...newPhotoURLs];
 
@@ -1245,6 +1244,7 @@ async function updateJob() {
         const jobRef = doc(db, "jobs", jobToEdit);
         await updateDoc(jobRef, updatedData);
 
+        filesToUpload = []; // Clear after successful update
         updateModal.classList.add('hidden');
         const lang = localStorage.getItem('language') || 'en';
         document.getElementById('success-modal-title').textContent = translations[lang].successTitle;
@@ -1285,18 +1285,12 @@ function initializeEventListeners() {
         }
     });
     imagePreviewContainer.addEventListener('click', (e) => {
-        if (e.target.classList.contains('remove-img-btn')) {
-            const index = parseInt(e.target.dataset.index, 10);
-            const urlToRemove = e.target.dataset.url;
-
-            if (urlToRemove) {
-                e.target.parentElement.remove();
-                const currentImages = Array.from(imagePreviewContainer.querySelectorAll('img')).map(img => img.src);
-                renderPreviews(currentImages);
-            } else {
+        const removeBtn = e.target.closest('.remove-img-btn');
+        if (removeBtn) {
+            const index = parseInt(removeBtn.dataset.index, 10);
+            if (!isNaN(index) && index < filesToUpload.length) {
                 filesToUpload.splice(index, 1);
-                const currentImages = Array.from(imagePreviewContainer.querySelectorAll('img')).map(img => img.src).filter(src => src.startsWith('https://'));
-                renderPreviews([...currentImages, ...filesToUpload]);
+                renderPreviews(filesToUpload);
             }
         }
     });
@@ -1385,6 +1379,11 @@ function initializeEventListeners() {
                 timestamp: new Date(), 
                 photoURLs: photoURLs
             });
+
+            // FIX: Reset the filesToUpload array immediately after a successful submission.
+            // This prevents the same files from being uploaded again on the next submission.
+            filesToUpload = [];
+
             const lang = localStorage.getItem('language') || 'en';
             document.getElementById('success-modal-title').textContent = translations[lang].successTitle;
             document.getElementById('success-modal-message').textContent = translations[lang].successMessage;
@@ -1541,3 +1540,4 @@ function initializeEventListeners() {
 
 // Initialize all event listeners once when the script loads
 initializeEventListeners();
+
