@@ -98,7 +98,20 @@ const loginView = document.getElementById('login-view'),
       dashboardPeriod = document.getElementById('dashboard-period'),
       dashboardCustomDateRange = document.getElementById('dashboard-custom-date-range'),
       dashboardStartDate = document.getElementById('dashboard-start-date'),
-      dashboardEndDate = document.getElementById('dashboard-end-date');
+      dashboardEndDate = document.getElementById('dashboard-end-date'),
+      // New Elements for Staff Management
+      manageStaffBtn = document.getElementById('manage-staff-btn'),
+      manageStaffView = document.getElementById('manage-staff-view'),
+      newStaffNameInput = document.getElementById('new-staff-name-input'),
+      addStaffBtn = document.getElementById('add-staff-btn'),
+      staffListContainer = document.getElementById('staff-list-container'),
+      backToDashboardBtn3 = document.getElementById('back-to-dashboard-btn3'),
+      addStaffError = document.getElementById('add-staff-error'),
+      deleteStaffModal = document.getElementById('delete-staff-modal'),
+      cancelDeleteStaffBtn = document.getElementById('cancel-delete-staff-btn'),
+      confirmDeleteStaffBtn = document.getElementById('confirm-delete-staff-btn'),
+      deleteStaffBtnText = document.getElementById('delete-staff-btn-text'),
+      deleteStaffBtnLoader = document.getElementById('delete-staff-btn-loader');
 
 // --- State Variables ---
 let googleMap, currentInfoWindow = null, markers = [];
@@ -107,7 +120,8 @@ let allJobs = [], currentFilteredJobs = [], currentStream = null, filesToUpload 
     selectedLocation = null, currentSort = { key: 'timestamp', dir: 'desc' },
     modalImages = [], currentModalImageIndex = 0, isInitialLoad = true,
     jobToDelete = null, staffViewInitialized = false,
-    jobToEdit = null, isEditMode = false;
+    jobToEdit = null, isEditMode = false,
+    allStaff = [], staffToDeleteId = null;
 
 // Landmark data
 const landmarkData = {
@@ -132,7 +146,7 @@ const translations = {
         copied: "Copied!", noAddress: "No Address", noMatchingJobs: "No matching jobs found.",
         successTitle: "Success!", successMessage: "Successfully logged your work.", newEntry: "New Entry",
         updateSuccessMessage: "Job record updated successfully.",
-        staffNameLabel: "Name", staffNamePlaceholder: "Enter your full name",
+        staffNameLabel: "Name", staffNamePlaceholder: "Enter your full name", selectStaffName: "Select your name...",
         landmarkLabel: "Landmark", jobLocationLabel: "Job Location",
         jobLocationPlaceholder: "Search for a location...", useCurrentLocation: "Use Current Location",
         SAMPATCHAK: "SAMPATCHAK", KURTHOUL: "KURTHOUL", SIPARA: "SIPARA",
@@ -153,7 +167,7 @@ const translations = {
         copied: "कॉपी किया गया!", noAddress: "कोई पता नहीं", noMatchingJobs: "कोई मेल खाने वाली नौकरी नहीं मिली।",
         successTitle: "सफलता!", successMessage: "आपका काम सफलतापूर्वक लॉग हो गया।", newEntry: "नई प्रविष्टि",
         updateSuccessMessage: "जॉब रिकॉर्ड सफलतापूर्वक अपडेट किया गया।",
-        staffNameLabel: "नाम", staffNamePlaceholder: "अपना पूरा नाम दर्ज करें",
+        staffNameLabel: "नाम", staffNamePlaceholder: "अपना पूरा नाम दर्ज करें", selectStaffName: "अपना नाम चुनें...",
         landmarkLabel: "लैंडमार्क", jobLocationLabel: "जॉब लोकेशन",
         jobLocationPlaceholder: "स्थान खोजें...", useCurrentLocation: "वर्तमान स्थान का उपयोग करें",
         SAMPATCHAK: "संपतचक", KURTHOUL: "कुरथौल", SIPARA: "सिपारा",
@@ -188,6 +202,7 @@ onAuthStateChanged(auth, user => {
     const savedLang = localStorage.getItem('language') || 'en';
     setLanguage(savedLang);
     if (user) {
+        listenForStaffMembers(); // Listen for staff members for all logged-in users
         loginView.classList.add('hidden');
         if (user.uid === ADMIN_UID) {
             adminContainer.classList.remove('hidden');
@@ -201,7 +216,7 @@ onAuthStateChanged(auth, user => {
     } else {
         loginView.classList.remove('hidden');
         staffView.classList.add('hidden');
-        adminContainer.add('hidden');
+        adminContainer.classList.add('hidden');
     }
 });
 
@@ -216,9 +231,110 @@ function setupLogoutButtons() {
     });
 }
 
+// --- Staff Management (Admin) ---
+function setAddStaffButtonLoading(isLoading) {
+    const btnText = document.getElementById('add-staff-btn-text');
+    const btnLoader = document.getElementById('add-staff-btn-loader');
+    addStaffBtn.disabled = isLoading;
+    btnText.classList.toggle('hidden', isLoading);
+    btnLoader.classList.toggle('hidden', !isLoading);
+}
+
+function setDeleteStaffButtonLoading(isLoading) {
+    confirmDeleteStaffBtn.disabled = isLoading;
+    deleteStaffBtnText.classList.toggle('hidden', isLoading);
+    deleteStaffBtnLoader.classList.toggle('hidden', !isLoading);
+}
+
+async function handleAddStaff() {
+    const newName = newStaffNameInput.value.trim();
+    if (!newName) {
+        addStaffError.textContent = "Staff name cannot be empty.";
+        addStaffError.classList.remove('hidden');
+        return;
+    }
+    addStaffError.classList.add('hidden');
+    setAddStaffButtonLoading(true);
+
+    try {
+        await addDoc(collection(db, "staffMembers"), {
+            name: newName,
+            timestamp: new Date()
+        });
+        newStaffNameInput.value = '';
+        document.getElementById('success-modal-title').textContent = "Success!";
+        document.getElementById('success-modal-message').textContent = "New staff member added successfully.";
+        successModal.classList.remove('hidden');
+    } catch (error) {
+        console.error("Error adding staff member:", error);
+        addStaffError.textContent = "Failed to add staff member. Please try again.";
+        addStaffError.classList.remove('hidden');
+    } finally {
+        setAddStaffButtonLoading(false);
+    }
+}
+
+async function handleDeleteStaff() {
+    if (!staffToDeleteId) return;
+    setDeleteStaffButtonLoading(true);
+    try {
+        await deleteDoc(doc(db, "staffMembers", staffToDeleteId));
+    } catch (error) {
+        console.error("Error deleting staff member:", error);
+    } finally {
+        deleteStaffModal.classList.add('hidden');
+        staffToDeleteId = null;
+        setDeleteStaffButtonLoading(false);
+    }
+}
+
+function renderStaffList(staff) {
+    staffListContainer.innerHTML = '';
+    if (staff.length === 0) {
+        staffListContainer.innerHTML = `<p class="text-center text-gray-500">No staff members found. Add one above.</p>`;
+        return;
+    }
+    staff.forEach(member => {
+        const div = document.createElement('div');
+        div.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg border';
+        div.innerHTML = `
+            <span class="text-gray-800 font-medium">${member.name}</span>
+            <button class="delete-staff-btn text-red-500 hover:text-red-700" data-id="${member.id}" title="Delete Staff Member"><i class="fa-solid fa-trash-alt"></i></button>
+        `;
+        staffListContainer.appendChild(div);
+    });
+}
+
+function populateStaffDropdown(staff) {
+    const lang = localStorage.getItem('language') || 'en';
+    const currentSelection = staffNameInput.value;
+    staffNameInput.innerHTML = `<option value="" disabled selected>${translations[lang].selectStaffName}</option>`;
+    staff.forEach(member => {
+        const option = document.createElement('option');
+        option.value = member.name;
+        option.textContent = member.name;
+        staffNameInput.appendChild(option);
+    });
+    staffNameInput.value = currentSelection;
+    if (!staffNameInput.value) {
+        staffNameInput.querySelector('option[disabled]').selected = true;
+    }
+}
+
+function listenForStaffMembers() {
+    const q = query(collection(db, "staffMembers"), orderBy("name", "asc"));
+    onSnapshot(q, (querySnapshot) => {
+        allStaff = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        renderStaffList(allStaff);
+        populateStaffDropdown(allStaff);
+    });
+}
+
+
 // --- Staff View Logic ---
 function clearStaffForm() {
-    ['staff-name', 'job-type', 'landmark', 'junction-address', 'job-notes', 'photo', 'location-search-input'].forEach(id => document.getElementById(id).value = '');
+    ['job-type', 'landmark', 'junction-address', 'job-notes', 'photo', 'location-search-input'].forEach(id => document.getElementById(id).value = '');
+    staffNameInput.value = ""; // Reset dropdown
     serviceAreaInput.value = 'SAMPATCHAK';
     ['staff-name-error', 'job-type-error', 'service-area-error', 'landmark-error', 'photo-error', 'location-error', 'job-notes-error'].forEach(id => {
         const el = document.getElementById(id);
@@ -238,7 +354,6 @@ function clearStaffForm() {
     }
     populateLandmarks();
     
-    // Reset edit mode state
     isEditMode = false;
     jobToEdit = null;
     document.getElementById('staff-view-title').textContent = "Record Job Activity";
@@ -259,16 +374,16 @@ function renderPreviews(filesOrUrls) {
         const removeBtn = document.createElement('button');
         removeBtn.dataset.index = index;
         removeBtn.className = 'remove-img-btn absolute top-0 right-0 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center z-10';
-        removeBtn.innerHTML = '&times;';
+        removeBtn.innerHTML = '×';
         previewWrapper.appendChild(removeBtn);
 
         const img = document.createElement('img');
         img.className = 'w-full h-24 object-cover rounded-lg';
         
-        if (typeof item === 'string') { // It's a URL
+        if (typeof item === 'string') {
             img.src = item;
-            removeBtn.dataset.url = item; // Store URL for removal
-        } else { // It's a File object
+            removeBtn.dataset.url = item;
+        } else {
             const reader = new FileReader();
             reader.onload = (e) => {
                 img.src = e.target.result;
@@ -393,12 +508,12 @@ function validateForm() {
     let isValid = true;
     const lang = localStorage.getItem('language') || 'en';
     const errorMessages = {
-        en: { name: "Please enter your name.", jobType: "Please select a job type.", serviceArea: "Please select a service area.", landmark: "Please select a landmark.", photo: "Please attach at least one photo.", location: "Please provide a location.", jobNotes: "Please enter customer details or job notes." },
-        hi: { name: "कृपया अपना नाम दर्ज करें।", jobType: "कृपया जॉब का प्रकार चुनें।", serviceArea: "कृपया सेवा क्षेत्र चुनें।", landmark: "कृपया एक मील का पत्थर चुनें।", photo: "कृपया कम से कम एक फोटो संलग्न करें।", location: "कृपया एक स्थान प्रदान करें।", jobNotes: "कृपया ग्राहक विवरण या जॉब नोट्स दर्ज करें।" }
+        en: { name: "Please select your name.", jobType: "Please select a job type.", serviceArea: "Please select a service area.", landmark: "Please select a landmark.", photo: "Please attach at least one photo.", location: "Please provide a location.", jobNotes: "Please enter customer details or job notes." },
+        hi: { name: "कृपया अपना नाम चुनें।", jobType: "कृपया जॉब का प्रकार चुनें।", serviceArea: "कृपया सेवा क्षेत्र चुनें।", landmark: "कृपया एक मील का पत्थर चुनें।", photo: "कृपया कम से कम एक फोटो संलग्न करें।", location: "कृपया एक स्थान प्रदान करें।", jobNotes: "कृपया ग्राहक विवरण या जॉब नोट्स दर्ज करें।" }
     };
     ['staff-name-error', 'job-type-error', 'service-area-error', 'landmark-error', 'photo-error', 'location-error', 'job-notes-error'].forEach(id => document.getElementById(id).classList.add('hidden'));
     
-    if (!staffNameInput.value.trim()) {
+    if (!staffNameInput.value) {
         document.getElementById('staff-name-error').textContent = errorMessages[lang].name;
         document.getElementById('staff-name-error').classList.remove('hidden');
         isValid = false;
@@ -579,16 +694,22 @@ function applyFiltersAndSort() {
         );
     }
 
+    // Sort the filtered jobs
     filteredJobs.sort((a, b) => {
         const valA = a[currentSort.key];
         const valB = b[currentSort.key];
+        const modifier = currentSort.dir === 'asc' ? 1 : -1;
+
         let comparison = 0;
         if (currentSort.key === 'timestamp') {
-            comparison = valB.seconds - valA.seconds;
+            // Compare timestamps directly for ascending order
+            comparison = valA.seconds - valB.seconds;
         } else {
+            // Compare string values for other columns
             comparison = String(valA).localeCompare(String(valB));
         }
-        return currentSort.dir === 'asc' ? comparison : -comparison;
+        // Apply the modifier for ascending/descending
+        return comparison * modifier;
     });
 
     document.querySelectorAll('.sortable-header i').forEach(icon => {
@@ -733,7 +854,7 @@ function populateStaffFormForEdit(job) {
     
     selectedLocation = job.location;
     
-    filesToUpload = []; // Clear any pending new files
+    filesToUpload = [];
     if (job.photoURLs && job.photoURLs.length > 0) {
         renderPreviews(job.photoURLs);
     } else {
@@ -828,7 +949,7 @@ function renderMapMarkers(jobs) {
                     <p><i class="fa-solid fa-clock mr-1"></i> ${new Date(job.timestamp.seconds * 1000).toLocaleString()}</p>
                 </div>
                 <div class="mt-3 flex flex-col space-y-2">
-                    <a href="https://www.google.com/maps?daddr=${job.location.lat},${job.location.lng}" target="_blank" class="w-full text-center bg-blue-500 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-600 font-semibold">${translations[lang].navigate}</a>
+                    <a href="https://www.google.com/maps/search/?api=1&query=${job.location.lat},${job.location.lng}" target="_blank" class="w-full text-center bg-blue-500 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-600 font-semibold">${translations[lang].navigate}</a>
                     <button id="share-location-btn-${job.id}" class="w-full bg-green-600 text-white px-3 py-1 rounded-md text-sm hover:bg-green-700">${translations[lang].shareLocation}</button>
                     ${(job.photoURLs && job.photoURLs.length > 0) ? `<button id="share-photo-btn-${job.id}" class="w-full bg-gray-600 text-white px-3 py-1 rounded-md text-sm hover:bg-gray-700">${translations[lang].sharePhoto}</button>` : ''}
                 </div>
@@ -848,7 +969,7 @@ function renderMapMarkers(jobs) {
             const shareLocationBtn = document.getElementById(`share-location-btn-${job.id}`);
             if (shareLocationBtn) {
                 shareLocationBtn.addEventListener('click', async () => {
-                    const locationUrl = `https://www.google.com/maps?q=${job.location.lat},${job.location.lng}`;
+                    const locationUrl = `https://www.google.com/maps/search/?api=1&query=${job.location.lat},${job.location.lng}`;
                     const shareData = { title: 'Cable Job Location', text: `Location for job: ${job.notes}`, url: locationUrl };
                      try {
                         if (navigator.share) await navigator.share(shareData);
@@ -985,7 +1106,7 @@ function exportToExcel(jobs) {
         'Staff Name': job.staffName,
         'Address': job.customerAddress,
         'Timestamp': new Date(job.timestamp.seconds * 1000).toLocaleString(),
-        'Location': `https://www.google.com/maps?q=${job.location.lat},${job.location.lng}`,
+        'Location': `https://www.google.com/maps/search/?api=1&query=${job.location.lat},${job.location.lng}`,
         'Photos': (job.photoURLs || []).join(', ')
     }));
 
@@ -1036,7 +1157,7 @@ async function exportToPdf(jobs) {
         doc.text(`Address: ${job.customerAddress || 'N/A'}`, margin, y);
         y += 7;
         
-        const locationLink = `https://www.google.com/maps?q=${job.location.lat},${job.location.lng}`;
+        const locationLink = `https://www.google.com/maps/search/?api=1&query=${job.location.lat},${job.location.lng}`;
         doc.setTextColor(0, 0, 255);
         doc.textWithLink('View on Map', margin, y, { url: locationLink });
         doc.setTextColor(0, 0, 0);
@@ -1094,7 +1215,6 @@ async function updateJob() {
     setUpdateButtonLoading(true);
 
     try {
-        // 1. Upload new photos to Cloudinary
         const uploadPromises = filesToUpload.map(file => {
             const formData = new FormData();
             formData.append('file', file);
@@ -1105,31 +1225,26 @@ async function updateJob() {
         });
         const newPhotoURLs = await Promise.all(uploadPromises);
 
-        // 2. Get existing photo URLs
         const existingPhotoURLs = Array.from(imagePreviewContainer.querySelectorAll('img'))
             .map(img => img.src)
             .filter(src => src.startsWith('https://'));
 
-        // 3. Combine photo URLs
         const allPhotoURLs = [...existingPhotoURLs, ...newPhotoURLs];
 
-        // 4. Prepare data for Firestore update
         const updatedData = {
-            staffName: staffNameInput.value.trim(),
+            staffName: staffNameInput.value,
             category: jobTypeInput.value,
             area: serviceAreaInput.value,
             landmark: landmarkInput.value,
             customerAddress: junctionAddressInput.value,
             notes: jobNotesInput.value,
             photoURLs: allPhotoURLs,
-            lastUpdated: new Date() // Add a timestamp for the update
+            lastUpdated: new Date()
         };
 
-        // 5. Update the document in Firestore
         const jobRef = doc(db, "jobs", jobToEdit);
         await updateDoc(jobRef, updatedData);
 
-        // 6. Show success and reset
         updateModal.classList.add('hidden');
         const lang = localStorage.getItem('language') || 'en';
         document.getElementById('success-modal-title').textContent = translations[lang].successTitle;
@@ -1161,13 +1276,11 @@ function initializeEventListeners() {
     cancelCameraBtn.addEventListener('click', stopCameraStream);
     cancelJobBtn.addEventListener('click', () => {
         if (isEditMode) {
-            // If editing, go back to admin view
             staffView.classList.add('hidden');
             adminContainer.classList.remove('hidden');
             dashboardView.classList.remove('hidden');
-            clearStaffForm(); // This also resets isEditMode
+            clearStaffForm();
         } else {
-            // If creating new, just clear the form
             clearStaffForm();
         }
     });
@@ -1177,13 +1290,10 @@ function initializeEventListeners() {
             const urlToRemove = e.target.dataset.url;
 
             if (urlToRemove) {
-                // It's an existing image URL, remove it from the DOM
                 e.target.parentElement.remove();
-                // We need to re-render to update indices
                 const currentImages = Array.from(imagePreviewContainer.querySelectorAll('img')).map(img => img.src);
                 renderPreviews(currentImages);
             } else {
-                // It's a new file, remove from filesToUpload array
                 filesToUpload.splice(index, 1);
                 const currentImages = Array.from(imagePreviewContainer.querySelectorAll('img')).map(img => img.src).filter(src => src.startsWith('https://'));
                 renderPreviews([...currentImages, ...filesToUpload]);
@@ -1197,7 +1307,11 @@ function initializeEventListeners() {
             adminContainer.classList.remove('hidden');
             dashboardView.classList.remove('hidden');
             clearStaffForm();
-        } else {
+        } else if (staffView.classList.contains('hidden')) {
+            // This means we are in admin view (e.g., after adding staff)
+            // No action needed, just close the modal.
+        }
+        else {
             clearStaffForm();
         }
     });
@@ -1260,7 +1374,7 @@ function initializeEventListeners() {
             const photoURLs = await Promise.all(uploadPromises);
     
             await addDoc(collection(db, "jobs"), {
-                staffName: staffNameInput.value.trim(),
+                staffName: staffNameInput.value,
                 staffUid: user.uid, 
                 category: jobTypeInput.value,
                 area: serviceAreaInput.value, 
@@ -1300,15 +1414,46 @@ function initializeEventListeners() {
         updateModal.classList.add('hidden');
     });
     confirmUpdateBtn.addEventListener('click', updateJob);
+    
+    // Staff Management Listeners
+    manageStaffBtn.addEventListener('click', () => {
+        dashboardView.classList.add('hidden');
+        manageStaffView.classList.remove('hidden');
+    });
+
+    backToDashboardBtn3.addEventListener('click', () => {
+        manageStaffView.classList.add('hidden');
+        dashboardView.classList.remove('hidden');
+    });
+
+    addStaffBtn.addEventListener('click', handleAddStaff);
+
+    staffListContainer.addEventListener('click', (e) => {
+        const deleteBtn = e.target.closest('.delete-staff-btn');
+        if (deleteBtn) {
+            staffToDeleteId = deleteBtn.dataset.id;
+            deleteStaffModal.classList.remove('hidden');
+        }
+    });
+
+    cancelDeleteStaffBtn.addEventListener('click', () => {
+        deleteStaffModal.classList.add('hidden');
+        staffToDeleteId = null;
+    });
+
+    confirmDeleteStaffBtn.addEventListener('click', handleDeleteStaff);
 
     document.querySelectorAll('.sortable-header').forEach(header => {
         header.addEventListener('click', () => {
             const sortKey = header.dataset.sort;
             if (currentSort.key === sortKey) {
+                // If clicking the same column, toggle direction
                 currentSort.dir = currentSort.dir === 'asc' ? 'desc' : 'asc';
             } else {
+                // If clicking a new column, set the key and default direction
                 currentSort.key = sortKey;
-                currentSort.dir = 'asc';
+                // Default to descending for timestamps, ascending for everything else
+                currentSort.dir = sortKey === 'timestamp' ? 'desc' : 'asc';
             }
             applyFiltersAndSort();
         });
