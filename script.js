@@ -374,7 +374,7 @@ function renderPreviews(filesOrUrls) {
         const removeBtn = document.createElement('button');
         removeBtn.dataset.index = index;
         removeBtn.className = 'remove-img-btn absolute top-0 right-0 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center z-10';
-        removeBtn.innerHTML = '&times;';
+        removeBtn.innerHTML = '×';
         previewWrapper.appendChild(removeBtn);
 
         const img = document.createElement('img');
@@ -694,16 +694,22 @@ function applyFiltersAndSort() {
         );
     }
 
+    // Sort the filtered jobs
     filteredJobs.sort((a, b) => {
         const valA = a[currentSort.key];
         const valB = b[currentSort.key];
+        const modifier = currentSort.dir === 'asc' ? 1 : -1;
+
         let comparison = 0;
         if (currentSort.key === 'timestamp') {
-            comparison = valB.seconds - valA.seconds;
+            // Compare timestamps directly for ascending order
+            comparison = valA.seconds - valB.seconds;
         } else {
+            // Compare string values for other columns
             comparison = String(valA).localeCompare(String(valB));
         }
-        return currentSort.dir === 'asc' ? comparison : -comparison;
+        // Apply the modifier for ascending/descending
+        return comparison * modifier;
     });
 
     document.querySelectorAll('.sortable-header i').forEach(icon => {
@@ -943,7 +949,7 @@ function renderMapMarkers(jobs) {
                     <p><i class="fa-solid fa-clock mr-1"></i> ${new Date(job.timestamp.seconds * 1000).toLocaleString()}</p>
                 </div>
                 <div class="mt-3 flex flex-col space-y-2">
-                    <a href="https://www.google.com/maps?daddr=${job.location.lat},${job.location.lng}" target="_blank" class="w-full text-center bg-blue-500 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-600 font-semibold">${translations[lang].navigate}</a>
+                    <a href="https://www.google.com/maps/search/?api=1&query=${job.location.lat},${job.location.lng}" target="_blank" class="w-full text-center bg-blue-500 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-600 font-semibold">${translations[lang].navigate}</a>
                     <button id="share-location-btn-${job.id}" class="w-full bg-green-600 text-white px-3 py-1 rounded-md text-sm hover:bg-green-700">${translations[lang].shareLocation}</button>
                     ${(job.photoURLs && job.photoURLs.length > 0) ? `<button id="share-photo-btn-${job.id}" class="w-full bg-gray-600 text-white px-3 py-1 rounded-md text-sm hover:bg-gray-700">${translations[lang].sharePhoto}</button>` : ''}
                 </div>
@@ -963,7 +969,7 @@ function renderMapMarkers(jobs) {
             const shareLocationBtn = document.getElementById(`share-location-btn-${job.id}`);
             if (shareLocationBtn) {
                 shareLocationBtn.addEventListener('click', async () => {
-                    const locationUrl = `https://www.google.com/maps?q=${job.location.lat},${job.location.lng}`;
+                    const locationUrl = `https://www.google.com/maps/search/?api=1&query=${job.location.lat},${job.location.lng}`;
                     const shareData = { title: 'Cable Job Location', text: `Location for job: ${job.notes}`, url: locationUrl };
                      try {
                         if (navigator.share) await navigator.share(shareData);
@@ -1100,7 +1106,7 @@ function exportToExcel(jobs) {
         'Staff Name': job.staffName,
         'Address': job.customerAddress,
         'Timestamp': new Date(job.timestamp.seconds * 1000).toLocaleString(),
-        'Location': `https://www.google.com/maps?q=${job.location.lat},${job.location.lng}`,
+        'Location': `https://www.google.com/maps/search/?api=1&query=${job.location.lat},${job.location.lng}`,
         'Photos': (job.photoURLs || []).join(', ')
     }));
 
@@ -1151,7 +1157,7 @@ async function exportToPdf(jobs) {
         doc.text(`Address: ${job.customerAddress || 'N/A'}`, margin, y);
         y += 7;
         
-        const locationLink = `https://www.google.com/maps?q=${job.location.lat},${job.location.lng}`;
+        const locationLink = `https://www.google.com/maps/search/?api=1&query=${job.location.lat},${job.location.lng}`;
         doc.setTextColor(0, 0, 255);
         doc.textWithLink('View on Map', margin, y, { url: locationLink });
         doc.setTextColor(0, 0, 0);
@@ -1441,10 +1447,13 @@ function initializeEventListeners() {
         header.addEventListener('click', () => {
             const sortKey = header.dataset.sort;
             if (currentSort.key === sortKey) {
+                // If clicking the same column, toggle direction
                 currentSort.dir = currentSort.dir === 'asc' ? 'desc' : 'asc';
             } else {
+                // If clicking a new column, set the key and default direction
                 currentSort.key = sortKey;
-                currentSort.dir = 'asc';
+                // Default to descending for timestamps, ascending for everything else
+                currentSort.dir = sortKey === 'timestamp' ? 'desc' : 'asc';
             }
             applyFiltersAndSort();
         });
@@ -1473,7 +1482,7 @@ function initializeEventListeners() {
     });
     closeImageModal.addEventListener('click', () => imageModal.classList.add('hidden'));
     nextImageBtn.addEventListener('click', () => showModalImage(currentModalImageIndex + 1));
-    prevImageBtn.addEventListener('click', () => showModalImage(currentModalImageIndex + 1));
+    prevImageBtn.addEventListener('click', () => showModalImage(currentModalImageIndex - 1));
     downloadImageBtn.addEventListener('click', (e) => {
         e.preventDefault();
         fetch(e.currentTarget.href)
@@ -1532,4 +1541,3 @@ function initializeEventListeners() {
 
 // Initialize all event listeners once when the script loads
 initializeEventListeners();
-
